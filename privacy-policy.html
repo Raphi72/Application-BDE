@@ -21,70 +21,102 @@
 </head>
 <body>
     <h1>Politique de Confidentialité</h1>
-    <p class="updated">Dernière mise à jour : 1er avril 2026</p>
+    <p class="updated">Dernière mise à jour : 9 septembre 2026</p>
 
-    <p>BDE App est l'application officielle du Bureau Des Étudiants d'Aivancity. Cette politique explique comment nous collectons, utilisons et protégeons vos données personnelles.</p>
+    <p>BDE App est l'application officielle du Bureau Des Étudiants d'Aivancity. Cette politique explique quelles données personnelles sont collectées, pourquoi, comment elles sont protégées, et quels sont vos droits.</p>
 
-    <h2>1. Données collectées</h2>
-    <p>Lorsque vous utilisez BDE App, nous collectons :</p>
+    <h2>1. Responsable du traitement</h2>
+    <p>Le responsable du traitement des données est le Bureau Des Étudiants d'Aivancity.</p>
+    <p>Contact : <a href="mailto:bdeaivancity@gmail.com">bdeaivancity@gmail.com</a></p>
+
+    <h2>2. Données collectées</h2>
+    <p>Lorsque vous utilisez BDE App, nous pouvons collecter les données suivantes :</p>
     <ul>
-        <li><strong>Adresse email</strong> : utilisée pour créer et sécuriser votre compte (uniquement @aivancity.education et @aivancity.ai).</li>
-        <li><strong>Nom</strong> : affiché dans votre profil au sein de l'application.</li>
-        <li><strong>Token de notification push</strong> : identifiant technique permettant de vous envoyer des notifications sur votre appareil.</li>
-        <li><strong>Données d'inscription aux événements</strong> : lorsque vous vous inscrivez à un événement ou votez dans un sondage.</li>
+        <li><strong>Adresse email</strong> : création et sécurisation du compte. Seules les adresses <strong>@aivancity.education</strong> et <strong>@aivancity.ai</strong> sont autorisées à s'inscrire.</li>
+        <li><strong>Mot de passe</strong> : utilisé pour l'authentification. Il est chiffré par le prestataire d'authentification et n'est jamais stocké en clair.</li>
+        <li><strong>Nom</strong> : affiché dans votre profil au sein de l'application. Les profils peuvent être visibles par les autres utilisateurs connectés.</li>
+        <li><strong>Rôle</strong> (utilisateur / administrateur) : pour gérer les droits d'accès à l'application.</li>
+        <li><strong>Token de notification push</strong> et, le cas échéant, le <strong>type d'appareil</strong> (iOS, Android, web) : pour vous envoyer des notifications relatives au BDE.</li>
+        <li><strong>Inscriptions aux événements</strong> : lorsque vous vous inscrivez ou vous désinscrivez d'un événement. Ces inscriptions peuvent être visibles par les autres utilisateurs.</li>
+        <li><strong>Votes aux sondages</strong> : option choisie et lien avec votre compte. Les votes peuvent être visibles dans la base de données selon les règles d'accès de l'application.</li>
+        <li><strong>Propositions de clubs</strong> : nom du club, objectif, nom et email du président, capacité, idées d'événements, catégorie, informations complémentaires, et acceptation de la charte.</li>
+        <li><strong>Images</strong> : photos choisies depuis la galerie ou prises avec la caméra, principalement par les administrateurs (événements, actualités, clubs, galerie), puis hébergées sur le stockage distant.</li>
+        <li><strong>Préférence de langue</strong> : enregistrée localement sur votre appareil (FR/EN), sans être envoyée au serveur.</li>
     </ul>
+    <p>Nous ne collectons pas de données de localisation GPS, ni de données de paiement.</p>
 
-    <h2>2. Utilisation des données</h2>
-    <p>Vos données sont utilisées exclusivement pour :</p>
+    <h2>3. Finalités et bases légales</h2>
+    <p>Vos données sont utilisées uniquement pour :</p>
     <ul>
-        <li>L'authentification et la gestion de votre compte.</li>
-        <li>L'envoi de notifications relatives aux événements, sondages et actualités du BDE.</li>
-        <li>L'affichage de votre profil dans l'application.</li>
-        <li>La gestion des inscriptions aux événements et la participation aux sondages.</li>
+        <li>L'authentification et la gestion de votre compte (exécution du service / intérêt légitime).</li>
+        <li>L'affichage du profil et le fonctionnement des fonctionnalités sociales de l'app (exécution du service).</li>
+        <li>La gestion des événements, sondages, actualités, clubs et galerie (exécution du service / mission du BDE).</li>
+        <li>Le traitement des propositions de création de clubs (exécution du service / intérêt légitime du BDE).</li>
+        <li>L'envoi de notifications push relatives aux activités du BDE (consentement via les permissions système de l'appareil).</li>
+        <li>L'envoi d'emails transactionnels (confirmation de compte, réinitialisation de mot de passe).</li>
     </ul>
-    <p>Nous ne vendons, ne louons et ne partageons jamais vos données à des tiers à des fins commerciales.</p>
+    <p>Nous ne vendons, ne louons et ne partageons pas vos données à des tiers à des fins commerciales ou publicitaires.</p>
 
-    <h2>3. Stockage et sécurité</h2>
+    <h2>4. Permissions appareil</h2>
+    <p>Selon les fonctionnalités utilisées, l'application peut demander l'accès à :</p>
     <ul>
-        <li>Les données sont stockées sur <strong>Supabase</strong> (infrastructure hébergée en Europe).</li>
-        <li>Les mots de passe sont chiffrés et ne sont jamais stockés en clair.</li>
+        <li><strong>Notifications</strong> : pour vous informer des événements, sondages et actualités.</li>
+        <li><strong>Galerie photos</strong> : pour sélectionner une image à publier (notamment côté administration).</li>
+        <li><strong>Caméra</strong> : pour prendre une photo à publier (notamment côté administration).</li>
+    </ul>
+    <p>Vous pouvez refuser ou retirer ces permissions dans les réglages de votre appareil. Certaines fonctionnalités ne seront alors plus disponibles.</p>
+
+    <h2>5. Stockage et sécurité</h2>
+    <ul>
+        <li>Les données de compte et de contenu sont stockées chez <strong>Supabase</strong> (authentification, base de données PostgreSQL et stockage de fichiers).</li>
         <li>Les communications entre l'application et les serveurs sont chiffrées via HTTPS/TLS.</li>
-        <li>L'accès aux données est protégé par des politiques de sécurité au niveau de la base de données (Row Level Security).</li>
+        <li>L'accès aux données est protégé par des politiques de sécurité au niveau de la base (Row Level Security), selon le rôle de l'utilisateur.</li>
+        <li>La préférence de langue est stockée uniquement sur votre appareil.</li>
+    </ul>
+    <p>Nous recommandons de configurer le projet Supabase dans une région de l'Espace économique européen lorsque cela est possible.</p>
+
+    <h2>6. Destinataires et sous-traitants</h2>
+    <p>L'application s'appuie sur les prestataires suivants, uniquement pour fournir le service :</p>
+    <ul>
+        <li><strong>Supabase</strong> : authentification, base de données et stockage d'images.</li>
+        <li><strong>Expo Push Notifications</strong> : acheminement des notifications push.</li>
+        <li><strong>Brevo</strong> : envoi des emails transactionnels (confirmation de compte, réinitialisation de mot de passe), via la configuration SMTP de Supabase.</li>
+    </ul>
+    <p>Ces prestataires agissent comme sous-traitants techniques. Ils ne sont pas autorisés à utiliser vos données à des fins commerciales propres dans le cadre de ce service.</p>
+
+    <h2>7. Durée de conservation</h2>
+    <ul>
+        <li>Les données de compte sont conservées tant que votre compte est actif.</li>
+        <li>En cas de suppression de compte, les données personnelles associées sont supprimées ou anonymisées dans les meilleurs délais, sous réserve d'éventuelles obligations légales de conservation.</li>
+        <li>Les contenus publiés par l'administration (événements, actualités, clubs, galerie) peuvent être conservés pour le fonctionnement du service du BDE.</li>
     </ul>
 
-    <h2>4. Suppression de compte</h2>
-    <p>Vous pouvez supprimer votre compte à tout moment depuis l'écran <strong>Profil</strong> de l'application. La suppression entraîne :</p>
+    <h2>8. Suppression de compte</h2>
+    <p>Vous pouvez demander la suppression de votre compte depuis l'écran <strong>Profil</strong> de l'application. Lorsque la suppression aboutit, elle entraîne notamment :</p>
     <ul>
-        <li>La suppression de votre compte et de vos données personnelles.</li>
+        <li>La suppression de votre compte d'authentification et de vos données de profil.</li>
         <li>La suppression de votre token de notification.</li>
-        <li>La suppression de vos inscriptions aux événements et de vos votes.</li>
+        <li>La suppression de vos inscriptions aux événements, de vos votes et de vos propositions de clubs.</li>
     </ul>
+    <p>Si la suppression automatique échoue, contactez-nous à <a href="mailto:bdeaivancity@gmail.com">bdeaivancity@gmail.com</a> pour exercer votre droit à l'effacement.</p>
 
-    <h2>5. Cookies et traceurs</h2>
-    <p>BDE App n'utilise aucun cookie, aucun traceur publicitaire et aucun outil d'analyse comportementale.</p>
+    <h2>9. Cookies et traceurs</h2>
+    <p>BDE App n'utilise aucun cookie publicitaire, aucun traceur publicitaire et aucun outil d'analyse comportementale (analytics marketing).</p>
 
-    <h2>6. Services tiers</h2>
-    <p>L'application utilise les services suivants :</p>
-    <ul>
-        <li><strong>Supabase</strong> : authentification et base de données.</li>
-        <li><strong>Expo Push Notifications</strong> : envoi de notifications push.</li>
-        <li><strong>Brevo</strong> : envoi des emails transactionnels (confirmation de compte, réinitialisation de mot de passe).</li>
-    </ul>
-
-    <h2>7. Droits des utilisateurs</h2>
-    <p>Conformément au RGPD, vous disposez des droits suivants :</p>
+    <h2>10. Vos droits (RGPD)</h2>
+    <p>Conformément au RGPD, vous disposez notamment des droits suivants :</p>
     <ul>
         <li>Droit d'accès à vos données personnelles.</li>
-        <li>Droit de rectification de vos données.</li>
-        <li>Droit à l'effacement (suppression de compte).</li>
-        <li>Droit à la portabilité de vos données.</li>
+        <li>Droit de rectification.</li>
+        <li>Droit à l'effacement.</li>
+        <li>Droit à la limitation du traitement.</li>
+        <li>Droit d'opposition.</li>
+        <li>Droit à la portabilité.</li>
+        <li>Droit de retirer votre consentement (par exemple pour les notifications), sans affecter la licéité du traitement effectué avant le retrait.</li>
     </ul>
+    <p>Pour exercer vos droits, contactez <a href="mailto:bdeaivancity@gmail.com">bdeaivancity@gmail.com</a>. Vous pouvez également introduire une réclamation auprès de la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer">www.cnil.fr</a>).</p>
 
-    <h2>8. Contact</h2>
-    <p>Pour toute question relative à vos données personnelles, contactez-nous à :</p>
-    <p><a href="mailto:bdeaivancity@gmail.com">bdeaivancity@gmail.com</a></p>
-
-    <h2>9. Modifications</h2>
-    <p>Cette politique peut être mise à jour. En cas de modification significative, une notification sera envoyée via l'application. La date de dernière mise à jour figure en haut de cette page.</p>
+    <h2>11. Modifications</h2>
+    <p>Cette politique peut être mise à jour. En cas de modification significative, une information pourra être communiquée via l'application. La date de dernière mise à jour figure en haut de cette page.</p>
 </body>
 </html>

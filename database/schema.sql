@@ -5,7 +5,7 @@
 
 -- Table des profils utilisateurs (extension de auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   name TEXT,
   role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS news (
   content TEXT NOT NULL,
   image TEXT,
   category TEXT,
-  author_id UUID REFERENCES auth.users(id),
+  author_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -372,6 +372,40 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Suppression complète du compte connecté (appelée depuis Profil > Supprimer mon compte)
+-- Supprime auth.users + données liées (profiles, inscriptions, votes, propositions, push tokens)
+CREATE OR REPLACE FUNCTION public.delete_user()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  uid uuid := auth.uid();
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- Références sans CASCADE
+  UPDATE public.news
+  SET author_id = NULL
+  WHERE author_id = uid;
+
+  DELETE FROM public.push_tokens WHERE user_id = uid;
+  DELETE FROM public.event_registrations WHERE user_id = uid;
+  DELETE FROM public.votes WHERE user_id = uid;
+  DELETE FROM public.club_proposals WHERE user_id = uid;
+  DELETE FROM public.profiles WHERE id = uid;
+
+  -- Suppression du compte d'authentification Supabase
+  DELETE FROM auth.users WHERE id = uid;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_user() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.delete_user() TO authenticated;
 
 -- Triggers pour updated_at
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
