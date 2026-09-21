@@ -52,3 +52,7 @@ web-build/
 # Misc
 *.log
 *.pem
+
+# Local scratch files
+liste_email.csv
+graphify-out/
