@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -6,6 +5,10 @@ import { supabase } from '../config/supabase';
 
 // Vérifie si on est dans Expo Go (les notifications ne fonctionnent pas dans Expo Go depuis SDK 53)
 const isExpoGo = Constants.appOwnership === 'expo';
+
+// Chargé uniquement hors Expo Go : le simple import d'expo-notifications y
+// affiche une erreur (push Android retiré depuis SDK 53) et un avertissement.
+const Notifications = isExpoGo ? null : require('expo-notifications');
 
 // Configuration des notifications (seulement si pas dans Expo Go)
 if (!isExpoGo) {

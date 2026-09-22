@@ -3,7 +3,6 @@ import React, { useEffect } from 'react';
 import { Platform, AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as NavigationBar from 'expo-navigation-bar';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
@@ -30,6 +29,10 @@ export default function App() {
 
   useEffect(() => {
     if (isExpoGo) return;
+
+    // Import différé : charger expo-notifications dans Expo Go affiche une
+    // erreur (push Android retiré depuis SDK 53), même sans l'utiliser.
+    const Notifications = require('expo-notifications');
 
     (async () => {
       const { status } = await Notifications.getPermissionsAsync();
