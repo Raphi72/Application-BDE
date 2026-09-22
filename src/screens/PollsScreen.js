@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useOpenProfile } from '../navigation/ProfileNav';
 import {
   View,
   Text,
@@ -336,7 +337,7 @@ function PollDetailsScreen({ route, navigation }) {
  * Navigation pour les sondages
  */
 export default function PollsScreen() {
-  const navigation = useNavigation();
+  const openProfile = useOpenProfile();
   const { t } = useLanguage();
 
   return (
@@ -360,23 +361,14 @@ export default function PollsScreen() {
         component={PollsListScreen}
         options={{
           title: t('polls.title'),
-          headerRight: () => {
-            const parentNav = navigation.getParent();
-            return (
-              <TouchableOpacity
-                onPress={() => {
-                  if (parentNav) {
-                    parentNav.navigate('Profile');
-                  } else {
-                    navigation.navigate('Profile');
-                  }
-                }}
-                style={{ marginRight: 16, padding: 8 }}
-              >
-                <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-              </TouchableOpacity>
-            );
-          },
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={openProfile}
+              style={{ marginRight: 16, padding: 8 }}
+            >
+              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Stack.Screen

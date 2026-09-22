@@ -1,12 +1,29 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  NavigationContainer,
+  createNavigatorFactory,
+  useNavigationBuilder,
+  TabRouter,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Platform,
+  View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import CustomBottomTabBar from './CustomBottomTabBar';
+import { ProfileNavContext } from './ProfileNav';
 
 // Écrans d'authentification
 import LoginScreen from '../screens/LoginScreen';
@@ -30,138 +47,279 @@ import AdminClubProposalsScreen from '../screens/admin/AdminClubProposalsScreen'
 
 import { COLORS, SHADOWS } from '../constants/theme';
 
-const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
 
+// Le suivi du doigt et l'animation de snap utilisent l'Animated du cœur de
+// React Native (pas de dépendance reanimated). Le driver natif n'est pas
+// utilisé : on écrit translateX à chaque frame du geste via setValue, et
+// mélanger setValue (JS) et animation native sur un même noeud lève une
+// erreur. Le driver JS reste fluide pour un simple translateX et se comporte
+// de façon identique sur web et mobile.
+const USE_NATIVE_DRIVER = false;
+const WINDOW_WIDTH = Dimensions.get('window').width;
+
+// Les 4 catégories principales, swipeables horizontalement, dans cet ordre.
+const SWIPE_TABS = [
+  { name: 'Events', translationKey: 'navigation.events', icon: 'calendar', component: EventsScreen },
+  { name: 'Polls', translationKey: 'navigation.polls', icon: 'checkmark-circle', component: PollsScreen },
+  { name: 'News', translationKey: 'navigation.news', icon: 'newspaper', component: NewsScreen },
+  { name: 'Clubs', translationKey: 'navigation.clubs', icon: 'people', component: ClubsScreen },
+];
+
+// Seuils du geste de swipe entre catégories : une distance suffisante
+// OU une vitesse de relâchement suffisante (flick rapide) déclenche le
+// changement de page ; en dessous, rien ne se passe (retour naturel).
+const SWIPE_DISTANCE_THRESHOLD = 60;
+const SWIPE_VELOCITY_THRESHOLD = 800;
+// Déplacement horizontal (dp) à partir duquel le pager prend le geste. Il doit
+// rester proche du seuil de scroll vertical natif d'Android (8 dp) pour que les
+// swipes légèrement en biais soient bien reconnus comme horizontaux. Au-delà
+// de SWIPE_FAIL_DY verticaux sans activation, le geste est laissé au scroll.
+const SWIPE_ACTIVATE_DX = 10;
+const SWIPE_FAIL_DY = 20;
+
 /**
- * Navigation pour les utilisateurs authentifiés
+ * En-tête simple pour l'écran Admin (titre + bouton profil), équivalent
+ * à l'en-tête que l'ancien Tab.Navigator affichait pour cet onglet.
+ * Admin n'est pas swipeable, donc n'est pas inclus dans le pager de catégories.
+ */
+function AdminHeaderBar({ title, onProfilePress }) {
+  return (
+    <View style={styles.adminHeader}>
+      <Text style={styles.adminHeaderTitle}>{title}</Text>
+      <TouchableOpacity onPress={onProfilePress} style={{ padding: 4 }}>
+        <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/**
+ * Vue du pager de catégories, rendue à l'intérieur de notre navigateur
+ * personnalisé (voir CategoryPagerNavigator). Elle reçoit l'état du TabRouter :
+ * - `state` : routes + index de la catégorie active,
+ * - `navigation` : pour changer de catégorie (navigate) et ouvrir Profil,
+ * - `descriptors` : `render()` fournit le conteneur de scène de chaque écran.
+ *
+ * Les 4 écrans sont rendus côte à côte dans une rangée Animated translatée que
+ * le geste fait suivre au doigt (aucun react-native-pager-view). Comme chaque
+ * scène provient du même navigateur (un seul arbre de navigation), le bouton
+ * retour Android, le focus et useFocusEffect se comportent correctement.
+ * Admin reste un écran à part (affiché/masqué via adminActive) et la barre du
+ * bas reste synchronisée dans les deux sens (swipe <-> onglet).
+ */
+function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
+  const { t } = useLanguage();
+  const [adminActive, setAdminActive] = useState(false);
+  const [width, setWidth] = useState(WINDOW_WIDTH);
+  const routeCount = state.routes.length;
+
+  const translateX = useRef(new Animated.Value(-state.index * WINDOW_WIDTH)).current;
+  // Miroirs synchrones lus depuis les callbacks du geste (closures figées).
+  const widthRef = useRef(width);
+  const indexRef = useRef(state.index);
+
+  useEffect(() => {
+    widthRef.current = width;
+  }, [width]);
+
+  // Anime la rangée vers la catégorie active à chaque changement d'index (tap
+  // sur la barre, changement post-geste) ou de largeur (rotation / resize web).
+  // L'animation part de la valeur courante de translateX (position du doigt),
+  // ce qui enchaîne naturellement le suivi du doigt puis le snap.
+  useEffect(() => {
+    indexRef.current = state.index;
+    Animated.spring(translateX, {
+      toValue: -state.index * width,
+      useNativeDriver: USE_NATIVE_DRIVER,
+      bounciness: 0,
+      speed: 14,
+    }).start();
+  }, [state.index, width, translateX]);
+
+  // Change de catégorie d'un cran (ou revient à la page courante si pas de
+  // changement possible). navigation.navigate met à jour state.index, ce qui
+  // déclenche l'animation via l'effet ci-dessus.
+  const goToIndex = useCallback(
+    (index) => {
+      const clamped = Math.max(0, Math.min(routeCount - 1, index));
+      if (clamped === indexRef.current) {
+        // Pas de changement : on ramène la rangée sur la page courante.
+        Animated.spring(translateX, {
+          toValue: -clamped * widthRef.current,
+          useNativeDriver: USE_NATIVE_DRIVER,
+          bounciness: 0,
+          speed: 14,
+        }).start();
+        return;
+      }
+      navigation.navigate(state.routes[clamped].name);
+    },
+    [navigation, routeCount, state.routes, translateX]
+  );
+
+  // Pendant le geste : le contenu suit le doigt, borné à la page courante ±1
+  // (garantit « un seul changement de catégorie par geste ») et aux bords.
+  const onPanUpdate = useCallback(
+    (translationX) => {
+      const w = widthRef.current;
+      const base = -indexRef.current * w;
+      const upperBound = -Math.max(0, indexRef.current - 1) * w; // vers la gauche (précédent)
+      const lowerBound = -Math.min(routeCount - 1, indexRef.current + 1) * w; // vers la droite (suivant)
+      let next = base + translationX;
+      if (next > upperBound) next = upperBound;
+      if (next < lowerBound) next = lowerBound;
+      translateX.setValue(next);
+    },
+    [routeCount, translateX]
+  );
+
+  // Au relâchement : une distance OU une vitesse suffisante change de page d'un
+  // cran ; sinon retour à la page courante.
+  const onPanFinish = useCallback(
+    (translationX, velocityX) => {
+      const distanceOk = Math.abs(translationX) > SWIPE_DISTANCE_THRESHOLD;
+      const velocityOk = Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD;
+      if (!distanceOk && !velocityOk) {
+        goToIndex(indexRef.current);
+        return;
+      }
+      const goingNext = distanceOk ? translationX < 0 : velocityX < 0;
+      goToIndex(indexRef.current + (goingNext ? 1 : -1));
+    },
+    [goToIndex]
+  );
+
+  // Geste horizontal via react-native-gesture-handler. La décision
+  // « horizontal ou vertical ? » est prise nativement sur le thread UI, au même
+  // niveau que celle des ScrollView/FlatList des écrans. Avec PanResponder,
+  // cette décision passait par le thread JS (asynchrone) : sur Android, dès
+  // qu'un vrai doigt dérivait un peu à la verticale (~20° suffisent), la liste
+  // native franchissait son seuil de scroll (8 dp) avant que le JS ait réclamé
+  // le geste, et le pager ne recevait plus rien. Ici le pan s'active dès
+  // SWIPE_ACTIVATE_DX horizontaux et échoue si le doigt part d'abord à la
+  // verticale (le scroll de la liste reste alors prioritaire).
+  // runOnJS : pas de reanimated, les callbacks pilotent l'Animated (driver JS).
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-SWIPE_ACTIVATE_DX, SWIPE_ACTIVATE_DX])
+        .failOffsetY([-SWIPE_FAIL_DY, SWIPE_FAIL_DY])
+        .runOnJS(true)
+        .onUpdate((e) => onPanUpdate(e.translationX))
+        .onEnd((e, success) => {
+          if (success) onPanFinish(e.translationX, e.velocityX);
+          else goToIndex(indexRef.current);
+        }),
+    [onPanUpdate, onPanFinish, goToIndex]
+  );
+  const openProfile = useCallback(() => navigation.navigate('Profile'), [navigation]);
+
+  const tabs = state.routes.map((route) => {
+    const { options } = descriptors[route.key];
+    return { name: route.name, icon: options.icon, title: options.title ?? route.name };
+  });
+
+  return (
+    <ProfileNavContext.Provider value={openProfile}>
+      <View style={styles.mainTabsContainer}>
+        <GestureDetector gesture={panGesture}>
+          <View
+            style={[styles.pagerViewport, { display: adminActive ? 'none' : 'flex' }]}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 0) setWidth(w);
+            }}
+          >
+            <Animated.View
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                width: width * routeCount,
+                transform: [{ translateX }],
+              }}
+            >
+              {state.routes.map((route) => (
+                <View key={route.key} style={{ width, height: '100%' }}>
+                  {descriptors[route.key].render()}
+                </View>
+              ))}
+            </Animated.View>
+          </View>
+        </GestureDetector>
+
+        {isAdmin && adminActive && (
+          <View style={{ flex: 1 }}>
+            <AdminHeaderBar title={t('navigation.admin')} onProfilePress={openProfile} />
+            <AdminStack />
+          </View>
+        )}
+
+        <CustomBottomTabBar
+          tabs={tabs}
+          activeTabName={state.routes[state.index].name}
+          onSelectTab={(name) => {
+            setAdminActive(false);
+            navigation.navigate(name);
+          }}
+          isAdmin={isAdmin}
+          adminActive={adminActive}
+          adminLabel={t('navigation.admin')}
+          onSelectAdmin={() => setAdminActive(true)}
+        />
+      </View>
+    </ProfileNavContext.Provider>
+  );
+}
+
+/**
+ * Navigateur personnalisé (API bas-niveau react-navigation) branché sur le
+ * TabRouter. Il rend TOUTES les scènes en même temps (via CategoryPagerView)
+ * pour permettre le pager côte à côte, tout en fournissant un vrai conteneur
+ * de scène par écran et en restant un seul arbre de navigation.
+ */
+function CategoryPagerNavigator({ id, initialRouteName, children, screenOptions, isAdmin }) {
+  const { state, navigation, descriptors, NavigationContent } = useNavigationBuilder(TabRouter, {
+    id,
+    initialRouteName,
+    children,
+    screenOptions,
+  });
+
+  return (
+    <NavigationContent>
+      <CategoryPagerView
+        state={state}
+        navigation={navigation}
+        descriptors={descriptors}
+        isAdmin={isAdmin}
+      />
+    </NavigationContent>
+  );
+}
+
+const createCategoryPagerNavigator = createNavigatorFactory(CategoryPagerNavigator);
+const CategoryPager = createCategoryPagerNavigator();
+
+/**
+ * Navigation pour les utilisateurs authentifiés : les 4 catégories dans notre
+ * pager swipeable maison. Admin (non swipeable) et Profil sont gérés dans
+ * CategoryPagerView / la pile externe.
  */
 function MainTabs({ isAdmin }) {
   const { t } = useLanguage();
   return (
-    <Tab.Navigator
-      screenOptions={({ route, navigation }) => {
-        // Les écrans avec Stack Navigator gèrent leur propre header
-        const hasStackNavigator = ['Events', 'Polls', 'News', 'Clubs'].includes(route.name);
-        
-        return {
-          headerShown: !hasStackNavigator, // Cacher le header pour les écrans avec Stack
-          headerStyle: {
-            backgroundColor: COLORS.surface,
-            borderBottomWidth: 1,
-            borderBottomColor: COLORS.border,
-            elevation: 0,
-            shadowOpacity: 0,
-          },
-          headerTintColor: COLORS.text,
-          headerTitleStyle: {
-            fontWeight: 'bold',
-            color: COLORS.text,
-          },
-          headerRight: !hasStackNavigator ? () => (
-            <TouchableOpacity
-              onPress={() => {
-                const parent = navigation.getParent();
-                if (parent) {
-                  parent.navigate('Profile');
-                } else {
-                  navigation.navigate('Profile');
-                }
-              }}
-              style={{ marginRight: 8, padding: 4 }} // petit espace à droite
-            >
-              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-            </TouchableOpacity>
-          ) : undefined,
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName;
-            const iconSize = size || 24;
-
-            if (route.name === 'Events') {
-              iconName = focused ? 'calendar' : 'calendar-outline';
-            } else if (route.name === 'Polls') {
-              iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
-            } else if (route.name === 'News') {
-              iconName = focused ? 'newspaper' : 'newspaper-outline';
-            } else if (route.name === 'Clubs') {
-              iconName = focused ? 'people' : 'people-outline';
-            } else if (route.name === 'Gallery') {
-              iconName = focused ? 'images' : 'images-outline';
-            } else if (route.name === 'Admin') {
-              iconName = focused ? 'settings' : 'settings-outline';
-            }
-
-            return <Ionicons name={iconName} size={iconSize} color={color} />;
-          },
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarInactiveTintColor: COLORS.textSecondary,
-          tabBarStyle: {
-            backgroundColor: COLORS.surface,
-            borderTopColor: COLORS.border,
-            height: 65,
-            // Sur Android, on remonte un peu la barre pour éviter
-            // que les boutons système (◁ ○ ▢) ne passent par-dessus.
-            paddingBottom: Platform.OS === 'android' ? 12 : 5,
-            paddingTop: 5,
-            paddingHorizontal: 20, // Ajouter du padding horizontal pour centrer
-          },
-          tabBarItemStyle: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingVertical: 4,
-            minHeight: 55,
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            marginTop: 2,
-            marginBottom: 0,
-            textAlign: 'center',
-            numberOfLines: 1,
-          },
-          tabBarIconStyle: {
-            marginBottom: 2,
-          },
-          tabBarLabelPosition: 'below-icon',
-        };
-      }}
-    >
-      <Tab.Screen
-        name="Events"
-        component={EventsScreen}
-        options={{ title: t('navigation.events'), headerShown: false }}
-      />
-      <Tab.Screen
-        name="Polls"
-        component={PollsScreen}
-        options={{ title: t('navigation.polls'), headerShown: false }}
-      />
-      <Tab.Screen
-        name="News"
-        component={NewsScreen}
-        options={{ title: t('navigation.news'), headerShown: false }}
-      />
-      <Tab.Screen
-        name="Clubs"
-        component={ClubsScreen}
-        options={{ title: t('navigation.clubs'), headerShown: false }}
-      />
-      {/* Galerie temporairement désactivée
-      <Tab.Screen
-        name="Gallery"
-        component={GalleryScreen}
-        options={{ title: t('navigation.gallery') }}
-      />
-      */}
-      {isAdmin && (
-        <Tab.Screen
-          name="Admin"
-          component={AdminStack}
-          options={{ title: t('navigation.admin') }}
+    <CategoryPager.Navigator isAdmin={isAdmin}>
+      {SWIPE_TABS.map((tab) => (
+        <CategoryPager.Screen
+          key={tab.name}
+          name={tab.name}
+          component={tab.component}
+          options={{ title: t(tab.translationKey), icon: tab.icon }}
         />
-      )}
-    </Tab.Navigator>
+      ))}
+    </CategoryPager.Navigator>
   );
 }
 
@@ -404,6 +562,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  mainTabsContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  pagerViewport: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  adminHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  adminHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.text,
   },
   header: {
     backgroundColor: COLORS.surface,

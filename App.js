@@ -1,5 +1,7 @@
+import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { Platform, AppState } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -47,11 +49,13 @@ export default function App() {
   }, []);
 
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <AppNavigator />
-      </AuthProvider>
-    </LanguageProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+      </LanguageProvider>
+    </GestureHandlerRootView>
   );
 }
 

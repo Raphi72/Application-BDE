@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import { useOpenProfile } from '../navigation/ProfileNav';
 import {
   View,
   Text,
@@ -178,7 +179,7 @@ function NewsDetailsScreen({ route }) {
  * Navigation pour les actualités
  */
 export default function NewsScreen() {
-  const navigation = useNavigation();
+  const openProfile = useOpenProfile();
   const { t } = useLanguage();
 
   return (
@@ -202,23 +203,14 @@ export default function NewsScreen() {
         component={NewsListScreen}
         options={{
           title: t('news.title'),
-          headerRight: () => {
-            const parentNav = navigation.getParent();
-            return (
-              <TouchableOpacity
-                onPress={() => {
-                  if (parentNav) {
-                    parentNav.navigate('Profile');
-                  } else {
-                    navigation.navigate('Profile');
-                  }
-                }}
-                style={{ marginRight: 16, padding: 8 }}
-              >
-                <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-              </TouchableOpacity>
-            );
-          },
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={openProfile}
+              style={{ marginRight: 16, padding: 8 }}
+            >
+              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Stack.Screen

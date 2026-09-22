@@ -18,6 +18,7 @@ import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useOpenProfile } from '../navigation/ProfileNav';
 import EventCard from '../components/EventCard';
 import { supabase } from '../config/supabase';
 import { formatDateTime } from '../utils/dateUtils';
@@ -47,6 +48,7 @@ LocaleConfig.locales['fr'].firstDay = 1;
 
 function EventsListScreen({ navigation }) {
   const { t } = useLanguage();
+  const openProfile = useOpenProfile();
   // ... state declarations ...
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,6 @@ function EventsListScreen({ navigation }) {
 
   // Ajouter les boutons dans le header (calendrier à gauche, profil à droite)
   useLayoutEffect(() => {
-    const parentNav = navigation.getParent();
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
@@ -82,13 +83,7 @@ function EventsListScreen({ navigation }) {
           </TouchableOpacity>
           {/* Bouton profil */}
           <TouchableOpacity
-            onPress={() => {
-              if (parentNav) {
-                parentNav.navigate('Profile');
-              } else {
-                navigation.navigate('Profile');
-              }
-            }}
+            onPress={openProfile}
             style={[styles.headerButton, { marginRight: 0 }]}
           >
             <Ionicons name="person-circle" size={32} color={COLORS.primary} />
@@ -96,7 +91,7 @@ function EventsListScreen({ navigation }) {
         </View>
       ),
     });
-  }, [navigation, viewMode]);
+  }, [navigation, viewMode, openProfile]);
 
   const loadEvents = async (isRefresh = false) => {
     try {
@@ -482,7 +477,6 @@ function EventDetailsScreen({ route, navigation }) {
  * Navigation pour les événements
  */
 export default function EventsScreen() {
-  const navigation = useNavigation();
   const { t } = useLanguage();
 
   return (
