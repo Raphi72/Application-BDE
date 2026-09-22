@@ -16,6 +16,8 @@ import PollCard from '../components/PollCard';
 import { supabase } from '../config/supabase';
 import { formatDate, isPastDate } from '../utils/dateUtils';
 import { COLORS, SHADOWS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from '../components/PressableScale';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,8 +25,10 @@ const Stack = createNativeStackNavigator();
  * Écran de liste des sondages
  */
 function PollsListScreen({ navigation }) {
+  const { t } = useLanguage();
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [userVotes, setUserVotes] = useState({});
 
   useFocusEffect(
@@ -34,7 +38,7 @@ function PollsListScreen({ navigation }) {
     }, [])
   );
 
-  const loadPolls = async () => {
+  const loadPolls = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('polls')
@@ -66,10 +70,20 @@ function PollsListScreen({ navigation }) {
       loadVoteCounts(formattedPolls);
     } catch (error) {
       console.error('Erreur lors du chargement des sondages:', error);
-      Alert.alert('Erreur', 'Impossible de charger les sondages');
+      Alert.alert(t('common.error'), t('errors.generic'));
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPolls(true);
+    loadUserVotes();
   };
 
   const loadVoteCounts = async (pollsList) => {
@@ -160,12 +174,12 @@ function PollsListScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshing={loading}
-        onRefresh={loadPolls}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="checkmark-circle-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>Aucun sondage disponible</Text>
+            <Text style={styles.emptyText}>{t('polls.noPolls')}</Text>
           </View>
         }
       />
@@ -177,6 +191,7 @@ function PollsListScreen({ navigation }) {
  * Écran de détails d'un sondage avec possibilité de voter
  */
 function PollDetailsScreen({ route, navigation }) {
+  const { t } = useLanguage();
   const { poll } = route.params;
   const [localPoll, setLocalPoll] = useState(poll);
 
@@ -188,17 +203,17 @@ function PollDetailsScreen({ route, navigation }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Erreur', 'Vous devez être connecté pour voter');
+        Alert.alert(t('common.error'), 'Vous devez être connecté pour voter');
         return;
       }
 
       if (hasVoted) {
-        Alert.alert('Erreur', 'Vous avez déjà voté pour ce sondage');
+        Alert.alert(t('common.error'), t('polls.alreadyVoted'));
         return;
       }
 
       if (isPast) {
-        Alert.alert('Erreur', 'Ce sondage est terminé');
+        Alert.alert(t('common.error'), t('polls.pollEnded'));
         return;
       }
 
@@ -225,10 +240,10 @@ function PollDetailsScreen({ route, navigation }) {
         ),
       }));
 
-      Alert.alert('Merci !', 'Votre vote a été enregistré.');
+      Alert.alert(t('common.success'), t('polls.voteSuccess'));
     } catch (error) {
       console.error('Erreur lors du vote:', error);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer votre vote');
+      Alert.alert(t('common.error'), t('polls.voteError'));
     }
   };
 
@@ -240,14 +255,14 @@ function PollDetailsScreen({ route, navigation }) {
         {isPast && (
           <View style={[styles.alertBox, styles.alertWarning]}>
             <Ionicons name="information-circle" size={20} color={COLORS.warning} />
-            <Text style={[styles.alertText, { color: COLORS.warning }]}>Ce sondage est terminé</Text>
+            <Text style={[styles.alertText, { color: COLORS.warning }]}>{t('polls.pollEnded')}</Text>
           </View>
         )}
 
         {hasVoted && !isPast && (
           <View style={[styles.alertBox, styles.alertSuccess]}>
             <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-            <Text style={[styles.alertText, { color: COLORS.success }]}>Vous avez déjà voté</Text>
+            <Text style={[styles.alertText, { color: COLORS.success }]}>{t('polls.alreadyVoted')}</Text>
           </View>
         )}
 
@@ -260,7 +275,7 @@ function PollDetailsScreen({ route, navigation }) {
             const canVote = !hasVoted && !isPast;
 
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={option.id}
                 style={[
                   styles.optionCard,
@@ -289,7 +304,7 @@ function PollDetailsScreen({ route, navigation }) {
                     {option.votes} vote{option.votes > 1 ? 's' : ''}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>
@@ -305,10 +320,10 @@ function PollDetailsScreen({ route, navigation }) {
             <Ionicons name="time-outline" size={18} color={COLORS.textSecondary} />
             <Text style={styles.summaryText}>
               {isPast
-                ? 'Terminé'
+                ? t('polls.ended')
                 : localPoll.endDate
-                  ? `Jusqu'au ${formatDate(localPoll.endDate)}`
-                  : 'Durée illimitée'}
+                  ? `${t('polls.endDate')} ${formatDate(localPoll.endDate)}`
+                  : t('polls.noEndDate')}
             </Text>
           </View>
         </View>
@@ -322,7 +337,8 @@ function PollDetailsScreen({ route, navigation }) {
  */
 export default function PollsScreen() {
   const navigation = useNavigation();
-  
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -343,7 +359,7 @@ export default function PollsScreen() {
         name="PollsList"
         component={PollsListScreen}
         options={{
-          title: 'Sondages',
+          title: t('polls.title'),
           headerRight: () => {
             const parentNav = navigation.getParent();
             return (
@@ -355,7 +371,7 @@ export default function PollsScreen() {
                     navigation.navigate('Profile');
                   }
                 }}
-                style={{ marginRight: 24, padding: 4 }} // un peu plus à droite
+                style={{ marginRight: 16, padding: 8 }}
               >
                 <Ionicons name="person-circle" size={32} color={COLORS.primary} />
               </TouchableOpacity>
@@ -366,7 +382,7 @@ export default function PollsScreen() {
       <Stack.Screen
         name="PollDetails"
         component={PollDetailsScreen}
-        options={{ title: 'Détails du sondage' }}
+        options={{ title: t('polls.pollDetailsTitle') }}
       />
     </Stack.Navigator>
   );

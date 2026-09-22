@@ -13,7 +13,12 @@ import {
   Modal,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../constants/theme';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import PressableScale from '../components/PressableScale';
+import FadeIn from '../components/FadeIn';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -54,17 +59,22 @@ export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const { signUp } = useAuth();
+  const { t } = useLanguage();
 
   // Valider l'email en temps réel
   const handleEmailChange = (text) => {
     setEmail(text);
     setErrorMessage(''); // Clear general error
     if (text && !isEmailAllowed(text)) {
-      setEmailError('Seules les adresses @aivancity.education et @aivancity.ai sont autorisées');
+      setEmailError(t('auth.emailDomainRestriction'));
     } else {
       setEmailError('');
     }
@@ -72,31 +82,31 @@ export default function RegisterScreen({ navigation }) {
 
   const handleRegister = async () => {
     setErrorMessage(''); // Reset error message
-    
+
     // Validation
     if (!name || !email || !password || !confirmPassword) {
-      setErrorMessage('Veuillez remplir tous les champs');
+      setErrorMessage(t('auth.fillAllFields'));
       return;
     }
 
     // Vérification du domaine email
     if (!isEmailAllowed(email)) {
-      setErrorMessage('Seules les adresses @aivancity.education et @aivancity.ai peuvent s\'inscrire.');
+      setErrorMessage(t('auth.emailDomainRestrictionRegister'));
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage('Le mot de passe doit contenir au moins 6 caractères');
+      setErrorMessage(t('auth.weakPassword'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage('Les mots de passe ne correspondent pas');
+      setErrorMessage(t('auth.passwordMismatch'));
       return;
     }
 
     setLoading(true);
-    
+
     try {
       console.log('Tentative d\'inscription...');
       const { data, error } = await signUp(email, password, {
@@ -108,27 +118,24 @@ export default function RegisterScreen({ navigation }) {
 
       if (error) {
         console.error('Erreur inscription:', error);
-        
+
         // Gestion des erreurs spécifiques
         let message = error.message;
         if (error.message.includes('rate limit') || error.message.includes('Rate limit')) {
-          message = 'Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.';
+          message = t('auth.tooManyAttempts');
         } else if (error.message.includes('already registered') || error.message.includes('User already registered')) {
-          message = 'Cet email est déjà utilisé. Connectez-vous ou utilisez un autre email.';
+          message = t('auth.emailAlreadyUsed');
         } else if (error.message.includes('invalid') && error.message.includes('email')) {
-          message = 'Adresse email invalide.';
+          message = t('auth.invalidEmailAddress');
         }
-        
+
         setErrorMessage(message);
         return;
       }
 
       // Si Supabase a créé une session directement (email confirmation désactivé)
       if (data?.session) {
-        showAlert(
-          'Inscription réussie',
-          'Votre compte a été créé et vous êtes connecté. Bienvenue !'
-        );
+        showAlert(t('auth.signupSuccessTitle'), t('auth.signupSuccessMessage'));
         return;
       }
 
@@ -137,7 +144,7 @@ export default function RegisterScreen({ navigation }) {
       setShowSuccessModal(true);
     } catch (err) {
       console.error('Exception inscription:', err);
-      setErrorMessage('Une erreur est survenue. Veuillez réessayer.');
+      setErrorMessage(t('auth.genericErrorRetry'));
     } finally {
       setLoading(false);
     }
@@ -155,33 +162,43 @@ export default function RegisterScreen({ navigation }) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+          <LanguageSwitcher style={styles.languageSwitcher} />
+
           <View style={styles.header}>
-            <Ionicons name="person-add-outline" size={64} color="#7C5CFF" />
-            <Text style={styles.title}>Créer un compte</Text>
-            <Text style={styles.subtitle}>Rejoignez la communauté BDE</Text>
+            <Ionicons name="person-add-outline" size={64} color={COLORS.primary} />
+            <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+            <Text style={styles.subtitle}>{t('auth.registerSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#ccc" style={styles.inputIcon} />
+            <View style={[styles.inputContainer, nameFocused && styles.inputContainerFocused]}>
+              <Ionicons name="person-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Nom complet"
-                placeholderTextColor="#888"
+                placeholder={t('auth.fullName')}
+                placeholderTextColor={COLORS.textSecondary}
                 value={name}
                 onChangeText={(text) => { setName(text); setErrorMessage(''); }}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
                 autoCapitalize="words"
               />
             </View>
 
-            <View style={[styles.inputContainer, emailError ? styles.inputError : null]}>
-              <Ionicons name="mail-outline" size={20} color={emailError ? '#ff4444' : '#ccc'} style={styles.inputIcon} />
+            <View style={[
+              styles.inputContainer,
+              emailFocused && styles.inputContainerFocused,
+              emailError ? styles.inputError : null,
+            ]}>
+              <Ionicons name="mail-outline" size={20} color={emailError ? COLORS.error : COLORS.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email (@aivancity.education / .ai)"
-                placeholderTextColor="#888"
+                placeholder={t('auth.emailDomainPlaceholder')}
+                placeholderTextColor={COLORS.textSecondary}
                 value={email}
                 onChangeText={handleEmailChange}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -191,77 +208,83 @@ export default function RegisterScreen({ navigation }) {
               <Text style={styles.errorText}>{emailError}</Text>
             ) : null}
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#ccc" style={styles.inputIcon} />
+            <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Mot de passe"
-                placeholderTextColor="#888"
+                placeholder={t('auth.password')}
+                placeholderTextColor={COLORS.textSecondary}
                 value={password}
                 onChangeText={(text) => { setPassword(text); setErrorMessage(''); }}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeIcon}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Ionicons
                   name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                   size={20}
-                  color="#ccc"
+                  color={COLORS.textSecondary}
                 />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#ccc" style={styles.inputIcon} />
+            <View style={[styles.inputContainer, confirmPasswordFocused && styles.inputContainerFocused]}>
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Confirmer le mot de passe"
-                placeholderTextColor="#888"
+                placeholder={t('auth.confirmPassword')}
+                placeholderTextColor={COLORS.textSecondary}
                 value={confirmPassword}
                 onChangeText={(text) => { setConfirmPassword(text); setErrorMessage(''); }}
+                onFocus={() => setConfirmPasswordFocused(true)}
+                onBlur={() => setConfirmPasswordFocused(false)}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 style={styles.eyeIcon}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Ionicons
                   name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
                   size={20}
-                  color="#ccc"
+                  color={COLORS.textSecondary}
                 />
               </TouchableOpacity>
             </View>
 
             {errorMessage ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={18} color="#ff6b6b" />
+              <FadeIn style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={18} color={COLORS.error} />
                 <Text style={styles.errorMessageText}>{errorMessage}</Text>
-              </View>
+              </FadeIn>
             ) : null}
 
-            <TouchableOpacity
+            <PressableScale
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleRegister}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={COLORS.text} />
               ) : (
-                <Text style={styles.buttonText}>S'inscrire</Text>
+                <Text style={styles.buttonText}>{t('auth.signupButton')}</Text>
               )}
-            </TouchableOpacity>
+            </PressableScale>
 
             <TouchableOpacity
               style={styles.linkButton}
               onPress={() => navigation.navigate('Login')}
             >
               <Text style={styles.linkText}>
-                Déjà un compte ? <Text style={styles.linkTextBold}>Se connecter</Text>
+                {t('auth.hasAccount')} <Text style={styles.linkTextBold}>{t('auth.loginButton')}</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -278,43 +301,43 @@ export default function RegisterScreen({ navigation }) {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalIconContainer}>
-              <Ionicons name="mail-unread" size={80} color="#4CAF50" />
+              <Ionicons name="mail-unread" size={80} color={COLORS.success} />
             </View>
 
-            <Text style={styles.modalTitle}>Vérifiez votre email !</Text>
+            <Text style={styles.modalTitle}>{t('auth.checkEmailTitle')}</Text>
 
             <Text style={styles.modalDescription}>
-              Un email de confirmation a été envoyé à{'\n'}
+              {t('auth.confirmationEmailSentTo')}{'\n'}
               <Text style={styles.emailHighlight}>{email}</Text>
             </Text>
 
             <View style={styles.infoBox}>
-              <Ionicons name="checkmark-circle-outline" size={24} color="#4CAF50" />
+              <Ionicons name="checkmark-circle-outline" size={24} color={COLORS.success} />
               <Text style={styles.infoText}>
-                Cliquez sur le lien dans l'email pour activer votre compte
+                {t('auth.clickLinkToActivate')}
               </Text>
             </View>
 
             <View style={styles.infoBox}>
-              <Ionicons name="time-outline" size={24} color="#FFB800" />
+              <Ionicons name="time-outline" size={24} color={COLORS.warning} />
               <Text style={styles.infoText}>
-                Le lien expire dans 24 heures
+                {t('auth.linkExpiresIn24h')}
               </Text>
             </View>
 
             <View style={styles.infoBox}>
-              <Ionicons name="folder-outline" size={24} color="#888" />
+              <Ionicons name="folder-outline" size={24} color={COLORS.textSecondary} />
               <Text style={styles.infoText}>
-                Pensez à vérifier vos spams si vous ne trouvez pas l'email
+                {t('auth.checkSpamFolder')}
               </Text>
             </View>
 
-            <TouchableOpacity
+            <PressableScale
               style={styles.modalButton}
               onPress={handleCloseSuccessModal}
             >
-              <Text style={styles.modalButtonText}>Aller à la connexion</Text>
-            </TouchableOpacity>
+              <Text style={styles.modalButtonText}>{t('auth.goToLogin')}</Text>
+            </PressableScale>
           </View>
         </View>
       </Modal>
@@ -325,7 +348,7 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0E13',
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -335,6 +358,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  languageSwitcher: {
+    position: 'absolute',
+    top: 8,
+    right: 0,
+    zIndex: 1,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 40,
@@ -342,12 +371,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: COLORS.text,
     marginTop: 16,
   },
   subtitle: {
     fontSize: 16,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     marginTop: 8,
   },
   form: {
@@ -356,7 +385,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E24',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
@@ -367,14 +396,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     borderWidth: 1,
-    borderColor: '#7C5CFF',
+    borderColor: COLORS.border,
+  },
+  inputContainerFocused: {
+    borderColor: COLORS.primary,
   },
   inputError: {
-    borderColor: '#ff4444',
+    borderColor: COLORS.error,
     marginBottom: 4,
   },
   errorText: {
-    color: '#ff4444',
+    color: COLORS.error,
     fontSize: 12,
     marginBottom: 12,
     marginLeft: 4,
@@ -385,7 +417,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#fff',
+    color: COLORS.text,
     backgroundColor: 'transparent',
   },
   eyeIcon: {
@@ -394,21 +426,21 @@ const styles = StyleSheet.create({
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    backgroundColor: `${COLORS.error}26`,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: `${COLORS.error}4D`,
   },
   errorMessageText: {
-    color: '#ff6b6b',
+    color: COLORS.error,
     fontSize: 14,
     marginLeft: 8,
     flex: 1,
   },
   button: {
-    backgroundColor: '#7C5CFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
@@ -424,7 +456,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -434,16 +466,16 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: '#ccc',
+    color: COLORS.textSecondary,
   },
   linkTextBold: {
     fontWeight: 'bold',
-    color: '#7C5CFF',
+    color: COLORS.primary,
   },
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: '#0E0E13',
+    backgroundColor: COLORS.background,
     justifyContent: 'center',
     padding: 20,
   },
@@ -456,25 +488,25 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: COLORS.success,
     textAlign: 'center',
     marginBottom: 16,
   },
   modalDescription: {
     fontSize: 16,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
   },
   emailHighlight: {
-    color: '#7C5CFF',
+    color: COLORS.primary,
     fontWeight: 'bold',
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E24',
+    backgroundColor: COLORS.surface,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -482,13 +514,13 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     fontSize: 14,
     marginLeft: 12,
     lineHeight: 20,
   },
   modalButton: {
-    backgroundColor: '#7C5CFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
@@ -497,7 +529,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   modalButtonText: {
-    color: '#fff',
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: 'bold',
   },

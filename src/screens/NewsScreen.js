@@ -17,6 +17,7 @@ import NewsCard from '../components/NewsCard';
 import { supabase } from '../config/supabase';
 import { formatDate } from '../utils/dateUtils';
 import { COLORS, SHADOWS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,14 +25,16 @@ const Stack = createNativeStackNavigator();
  * Écran de liste des actualités
  */
 function NewsListScreen({ navigation }) {
+  const { t } = useLanguage();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadNews();
   }, []);
 
-  const loadNews = async () => {
+  const loadNews = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('news')
@@ -54,8 +57,17 @@ function NewsListScreen({ navigation }) {
     } catch (error) {
       console.error('Erreur lors du chargement des actualités:', error);
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadNews(true);
   };
 
   const renderNews = ({ item }) => (
@@ -81,12 +93,12 @@ function NewsListScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshing={loading}
-        onRefresh={loadNews}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="newspaper-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>Aucune actualité disponible</Text>
+            <Text style={styles.emptyText}>{t('news.noNews')}</Text>
           </View>
         }
       />
@@ -98,6 +110,7 @@ function NewsListScreen({ navigation }) {
  * Écran de détails d'une actualité
  */
 function NewsDetailsScreen({ route }) {
+  const { t } = useLanguage();
   const { news } = route.params;
   const { width } = Dimensions.get('window');
 
@@ -156,13 +169,6 @@ function NewsDetailsScreen({ route }) {
         </View>
 
         <Text style={styles.content}>{news.content}</Text>
-
-        <View style={styles.notificationSection}>
-          <Ionicons name="notifications-outline" size={24} color={COLORS.primary} />
-          <Text style={styles.notificationText}>
-            Les notifications push seront activées prochainement pour vous tenir informé des dernières actualités !
-          </Text>
-        </View>
       </View>
     </ScrollView>
   );
@@ -173,7 +179,8 @@ function NewsDetailsScreen({ route }) {
  */
 export default function NewsScreen() {
   const navigation = useNavigation();
-  
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -194,7 +201,7 @@ export default function NewsScreen() {
         name="NewsList"
         component={NewsListScreen}
         options={{
-          title: 'Actualités',
+          title: t('news.title'),
           headerRight: () => {
             const parentNav = navigation.getParent();
             return (
@@ -206,7 +213,7 @@ export default function NewsScreen() {
                     navigation.navigate('Profile');
                   }
                 }}
-                style={{ marginRight: 24, padding: 4 }} // un peu plus à droite
+                style={{ marginRight: 16, padding: 8 }}
               >
                 <Ionicons name="person-circle" size={32} color={COLORS.primary} />
               </TouchableOpacity>
@@ -217,7 +224,7 @@ export default function NewsScreen() {
       <Stack.Screen
         name="NewsDetails"
         component={NewsDetailsScreen}
-        options={{ title: 'Article' }}
+        options={{ title: t('news.articleDetailsTitle') }}
       />
     </Stack.Navigator>
   );
@@ -295,22 +302,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 24,
     marginBottom: 32,
-  },
-  notificationSection: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(124, 92, 255, 0.1)', // Primary absolute alpha
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.2)',
-  },
-  notificationText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: COLORS.primary,
-    lineHeight: 20,
   },
   sliderContainer: {
     height: 250,

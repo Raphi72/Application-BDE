@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
@@ -18,13 +19,16 @@ import EventCard from '../../components/EventCard';
 import { showImagePicker, uploadImage } from '../../services/imageUpload';
 import { COLORS, SHADOWS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
+import { useLanguage } from '../../context/LanguageContext';
 
 /**
  * Écran admin pour gérer les événements
  */
 export default function AdminEventsScreen() {
+  const { t } = useLanguage();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
 
@@ -42,7 +46,7 @@ export default function AdminEventsScreen() {
     loadEvents();
   }, []);
 
-  const loadEvents = async () => {
+  const loadEvents = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('events')
@@ -52,10 +56,45 @@ export default function AdminEventsScreen() {
       if (error) throw error;
       setEvents(data || []);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les événements');
+      Alert.alert(t('common.error'), 'Impossible de charger les événements');
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadEvents(true);
+  };
+
+  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
+  const hasUnsavedChanges = () => {
+    return Boolean(
+      title || description || date || time || location || maxParticipants || images.length > 0
+    );
+  };
+
+  const requestCloseModal = async () => {
+    if (hasUnsavedChanges()) {
+      const confirmClose = Platform.OS === 'web'
+        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
+        : await new Promise((resolve) => {
+            Alert.alert(
+              t('admin.discardChangesTitle'),
+              t('admin.discardChangesConfirm'),
+              [
+                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
+              ]
+            );
+          });
+      if (!confirmClose) return;
+    }
+    setModalVisible(false);
   };
 
   const openModal = (event = null) => {
@@ -103,23 +142,23 @@ export default function AdminEventsScreen() {
           try {
             const uploadedUrl = await uploadImage(selectedImage.uri, 'events');
             setImages(prev => [...prev, uploadedUrl]);
-            Alert.alert('Succès', 'Image ajoutée !');
+            Alert.alert(t('common.success'), 'Image ajoutée !');
           } catch (error) {
             console.error('Erreur upload:', error);
-            Alert.alert('Erreur', "Impossible d'uploader l'image.");
+            Alert.alert(t('common.error'), "Impossible d'uploader l'image.");
           } finally {
             setUploading(false);
           }
         }
       });
     } catch (error) {
-      Alert.alert('Erreur', error.message || 'Impossible de sélectionner une image');
+      Alert.alert(t('common.error'), error.message || 'Impossible de sélectionner une image');
     }
   };
 
   const handleSave = async () => {
     if (!title || !description || !date || !time || !location) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      Alert.alert(t('common.error'), t('admin.requiredFields'));
       return;
     }
 
@@ -144,7 +183,7 @@ export default function AdminEventsScreen() {
           .eq('id', editingEvent.id);
 
         if (error) throw error;
-        Alert.alert('Succès', 'Événement mis à jour');
+        Alert.alert(t('common.success'), t('admin.saveSuccess'));
       } else {
         // Création
         const { error } = await supabase
@@ -152,29 +191,29 @@ export default function AdminEventsScreen() {
           .insert([eventData]);
 
         if (error) throw error;
-        
+
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewEvent(title);
-        
-        Alert.alert('Succès', 'Événement créé et notification envoyée');
+
+        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
       setModalVisible(false);
       resetForm();
       loadEvents();
     } catch (error) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
   const handleDelete = async (eventId) => {
     Alert.alert(
-      'Confirmer la suppression',
-      'Êtes-vous sûr de vouloir supprimer cet événement ?',
+      t('admin.deleteConfirm'),
+      t('admin.deleteEventConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -186,7 +225,7 @@ export default function AdminEventsScreen() {
               if (error) throw error;
               loadEvents();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer l\'événement');
+              Alert.alert(t('common.error'), t('admin.deleteError'));
             }
           },
         },
@@ -209,15 +248,15 @@ export default function AdminEventsScreen() {
           style={styles.editButton}
           onPress={() => openModal(item)}
         >
-          <Ionicons name="create-outline" size={20} color="#4A90E2" />
-          <Text style={styles.editButtonText}>Modifier</Text>
+          <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+          <Text style={styles.editButtonText}>{t('common.edit')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={() => handleDelete(item.id)}
         >
-          <Ionicons name="trash-outline" size={20} color="#ff4444" />
-          <Text style={styles.deleteButtonText}>Supprimer</Text>
+          <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+          <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -228,7 +267,7 @@ export default function AdminEventsScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
           <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Nouvel événement</Text>
+          <Text style={styles.addButtonText}>{t('admin.newEvent')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -237,27 +276,27 @@ export default function AdminEventsScreen() {
         renderItem={renderEvent}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={loadEvents}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
 
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={requestCloseModal}
       >
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {editingEvent ? 'Modifier l\'événement' : 'Nouvel événement'}
+              {editingEvent ? t('admin.editEvent') : t('admin.newEvent')}
             </Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={requestCloseModal}>
               <Ionicons name="close" size={28} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Titre *</Text>
+            <Text style={styles.label}>{t('form.title')} *</Text>
             <TextInput
               style={styles.input}
               value={title}
@@ -266,7 +305,7 @@ export default function AdminEventsScreen() {
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Description *</Text>
+            <Text style={styles.label}>{t('form.description')} *</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={description}
@@ -277,25 +316,25 @@ export default function AdminEventsScreen() {
               numberOfLines={4}
             />
 
-            <Text style={styles.label}>Date *</Text>
+            <Text style={styles.label}>{t('form.date')} *</Text>
             <TextInput
               style={styles.input}
               value={date}
               onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
+              placeholder={t('form.dateFormat')}
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Heure *</Text>
+            <Text style={styles.label}>{t('form.time')} *</Text>
             <TextInput
               style={styles.input}
               value={time}
               onChangeText={setTime}
-              placeholder="HH:MM"
+              placeholder={t('form.timeFormat')}
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Lieu *</Text>
+            <Text style={styles.label}>{t('form.location')} *</Text>
             <TextInput
               style={styles.input}
               value={location}
@@ -304,7 +343,7 @@ export default function AdminEventsScreen() {
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Participants max</Text>
+            <Text style={styles.label}>{t('form.maxParticipants')}</Text>
             <TextInput
               style={styles.input}
               value={maxParticipants}
@@ -314,7 +353,7 @@ export default function AdminEventsScreen() {
               keyboardType="numeric"
             />
 
-            <Text style={styles.label}>Images</Text>
+            <Text style={styles.label}>{t('admin.images')}</Text>
             <View style={styles.imageSection}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
                 {images.map((img, index) => (
@@ -343,13 +382,13 @@ export default function AdminEventsScreen() {
               </ScrollView>
 
               <Text style={styles.imageHint}>
-                Ajoutez une ou plusieurs images (slider)
+                {t('admin.imageHint')}
               </Text>
             </View>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>
-                {editingEvent ? 'Mettre à jour' : 'Créer'}
+                {editingEvent ? t('common.update') : t('common.create')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
 import { COLORS, SHADOWS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
+import { useLanguage } from '../../context/LanguageContext';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -42,8 +43,11 @@ const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
  * Écran admin pour gérer les propositions de clubs
  */
 export default function AdminClubProposalsScreen() {
+  const { t } = useLanguage();
   const [proposals, setProposals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // premier chargement uniquement
+  const [refreshing, setRefreshing] = useState(false); // pull-to-refresh manuel
+  const isFirstLoad = useRef(true);
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
@@ -54,8 +58,7 @@ export default function AdminClubProposalsScreen() {
     loadProposals();
   }, [filter]);
 
-  const loadProposals = async () => {
-    setLoading(true);
+  const loadProposals = async (isRefresh = false) => {
     try {
       let query = supabase
         .from('club_proposals')
@@ -72,10 +75,19 @@ export default function AdminClubProposalsScreen() {
       setProposals(data || []);
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert('Erreur', 'Impossible de charger les propositions');
+      showAlert(t('common.error'), 'Impossible de charger les propositions');
     } finally {
-      setLoading(false);
+      if (isFirstLoad.current) {
+        isFirstLoad.current = false;
+        setLoading(false);
+      }
+      if (isRefresh) setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadProposals(true);
   };
 
   const openProposalDetails = (proposal) => {
@@ -94,8 +106,8 @@ export default function AdminClubProposalsScreen() {
             'Approuver la proposition',
             `Êtes-vous sûr de vouloir approuver le club "${selectedProposal.club_name}" ?\n\nUn nouveau club sera créé automatiquement.`,
             [
-              { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Approuver', onPress: () => resolve(true) },
+              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+              { text: t('admin.approve'), onPress: () => resolve(true) },
             ]
           );
         });
@@ -132,12 +144,12 @@ export default function AdminClubProposalsScreen() {
       // Envoyer une notification à tous les utilisateurs
       await notificationService.notifyNewClub(selectedProposal.club_name);
 
-      showAlert('Succès', 'Le club a été créé et une notification a été envoyée !');
+      showAlert(t('common.success'), `${t('admin.clubCreatedSuccess')} ${t('admin.notificationSent')}`);
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert('Erreur', 'Impossible d\'approuver la proposition');
+      showAlert(t('common.error'), 'Impossible d\'approuver la proposition');
     } finally {
       setProcessing(false);
     }
@@ -147,7 +159,7 @@ export default function AdminClubProposalsScreen() {
     if (!selectedProposal) return;
 
     if (!adminNotes.trim()) {
-      showAlert('Attention', 'Veuillez ajouter une note expliquant la raison du refus.');
+      showAlert('Attention', t('admin.noteRequired'));
       return;
     }
 
@@ -158,8 +170,8 @@ export default function AdminClubProposalsScreen() {
             'Refuser la proposition',
             `Êtes-vous sûr de vouloir refuser le club "${selectedProposal.club_name}" ?\n\nL'utilisateur pourra soumettre une nouvelle proposition.`,
             [
-              { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Refuser', style: 'destructive', onPress: () => resolve(true) },
+              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+              { text: t('admin.reject'), style: 'destructive', onPress: () => resolve(true) },
             ]
           );
         });
@@ -178,12 +190,12 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
-      showAlert('Proposition refusée', 'L\'utilisateur peut maintenant soumettre une nouvelle proposition.');
+      showAlert(t('clubs.proposalRejected'), 'L\'utilisateur peut maintenant soumettre une nouvelle proposition.');
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert('Erreur', 'Impossible de refuser la proposition');
+      showAlert(t('common.error'), 'Impossible de refuser la proposition');
     } finally {
       setProcessing(false);
     }
@@ -204,12 +216,12 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
-      showAlert('Succès', 'La proposition est maintenant en cours d\'examen.');
+      showAlert(t('common.success'), 'La proposition est maintenant en cours d\'examen.');
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert('Erreur', 'Impossible de mettre à jour le statut');
+      showAlert(t('common.error'), 'Impossible de mettre à jour le statut');
     } finally {
       setProcessing(false);
     }
@@ -217,20 +229,20 @@ export default function AdminClubProposalsScreen() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending': return '#FFA500';
-      case 'under_review': return '#3498db';
-      case 'approved': return '#27ae60';
-      case 'rejected': return '#e74c3c';
+      case 'pending': return COLORS.warning;
+      case 'under_review': return COLORS.primary;
+      case 'approved': return COLORS.success;
+      case 'rejected': return COLORS.error;
       default: return COLORS.textSecondary;
     }
   };
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'pending': return 'En attente';
-      case 'under_review': return 'En examen';
-      case 'approved': return 'Approuvé';
-      case 'rejected': return 'Refusé';
+      case 'pending': return t('admin.pending');
+      case 'under_review': return t('admin.underReview');
+      case 'approved': return t('admin.approved');
+      case 'rejected': return t('admin.rejected');
       default: return status;
     }
   };
@@ -256,7 +268,7 @@ export default function AdminClubProposalsScreen() {
         </View>
         <View style={styles.infoRow}>
           <Ionicons name="folder-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.infoText}>{item.category || 'Non spécifié'}</Text>
+          <Text style={styles.infoText}>{item.category || t('profile.notSpecified')}</Text>
         </View>
         <View style={styles.infoRow}>
           <Ionicons name="people-outline" size={16} color={COLORS.textSecondary} />
@@ -277,11 +289,11 @@ export default function AdminClubProposalsScreen() {
       style={styles.filtersContainer}
     >
       {[
-        { key: 'pending', label: 'En attente' },
-        { key: 'under_review', label: 'En examen' },
-        { key: 'approved', label: 'Approuvés' },
-        { key: 'rejected', label: 'Refusés' },
-        { key: 'all', label: 'Tous' },
+        { key: 'pending', label: t('admin.pending') },
+        { key: 'under_review', label: t('admin.underReview') },
+        { key: 'approved', label: t('admin.approved') },
+        { key: 'rejected', label: t('admin.rejected') },
+        { key: 'all', label: t('admin.all') },
       ].map((f) => (
         <TouchableOpacity
           key={f.key}
@@ -316,8 +328,8 @@ export default function AdminClubProposalsScreen() {
           renderItem={renderProposal}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          refreshing={loading}
-          onRefresh={loadProposals}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="document-text-outline" size={64} color={COLORS.surfaceLight} />
@@ -356,40 +368,40 @@ export default function AdminClubProposalsScreen() {
                 <Text style={styles.sectionTitle}>Informations du club</Text>
                 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Nom du club</Text>
+                  <Text style={styles.fieldLabel}>{t('clubs.clubName')}</Text>
                   <Text style={styles.fieldValue}>{selectedProposal.club_name}</Text>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Catégorie</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.category || 'Non spécifié'}</Text>
+                  <Text style={styles.fieldLabel}>{t('form.category')}</Text>
+                  <Text style={styles.fieldValue}>{selectedProposal.category || t('profile.notSpecified')}</Text>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Objectif</Text>
+                  <Text style={styles.fieldLabel}>{t('clubs.objective')}</Text>
                   <Text style={styles.fieldValueMultiline}>{selectedProposal.objective}</Text>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Capacité maximale</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.max_capacity} membres</Text>
+                  <Text style={styles.fieldLabel}>{t('clubs.maxCapacity')}</Text>
+                  <Text style={styles.fieldValue}>{selectedProposal.max_capacity} {t('clubs.members')}</Text>
                   <Text style={styles.fieldHint}>
-                    Objectif 3/4: {Math.ceil(selectedProposal.max_capacity * 0.75)} membres minimum dans le 1er mois
+                    Objectif 3/4: {Math.ceil(selectedProposal.max_capacity * 0.75)} {t('clubs.members')} minimum dans le 1er mois
                   </Text>
                 </View>
               </View>
 
               {/* Président */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Président</Text>
-                
+                <Text style={styles.sectionTitle}>{t('clubs.president')}</Text>
+
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Nom</Text>
+                  <Text style={styles.fieldLabel}>{t('auth.name')}</Text>
                   <Text style={styles.fieldValue}>{selectedProposal.president_name}</Text>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Email</Text>
+                  <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
                   <Text style={[styles.fieldValue, { color: COLORS.primary }]}>
                     {selectedProposal.president_email}
                   </Text>
@@ -398,21 +410,21 @@ export default function AdminClubProposalsScreen() {
 
               {/* Événements */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Idées d'événements</Text>
+                <Text style={styles.sectionTitle}>{t('clubs.eventIdeas')}</Text>
                 <Text style={styles.fieldValueMultiline}>{selectedProposal.event_ideas}</Text>
               </View>
 
               {/* Infos supplémentaires */}
               {selectedProposal.additional_info && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Informations supplémentaires</Text>
+                  <Text style={styles.sectionTitle}>{t('clubs.additionalInfo')}</Text>
                   <Text style={styles.fieldValueMultiline}>{selectedProposal.additional_info}</Text>
                 </View>
               )}
 
               {/* Notes admin */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Notes admin</Text>
+                <Text style={styles.sectionTitle}>{t('admin.adminNotes')}</Text>
                 <TextInput
                   style={styles.notesInput}
                   value={adminNotes}
@@ -471,7 +483,7 @@ export default function AdminClubProposalsScreen() {
                       ) : (
                         <>
                           <Ionicons name="close-circle" size={20} color="#fff" />
-                          <Text style={styles.rejectButtonText}>Refuser</Text>
+                          <Text style={styles.rejectButtonText}>{t('admin.reject')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -481,7 +493,7 @@ export default function AdminClubProposalsScreen() {
 
               {selectedProposal.status === 'approved' && (
                 <View style={styles.approvedNotice}>
-                  <Ionicons name="checkmark-circle" size={24} color="#27ae60" />
+                  <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
                   <Text style={styles.approvedNoticeText}>
                     Cette proposition a été approuvée et le club a été créé.
                   </Text>
@@ -688,7 +700,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3498db',
+    backgroundColor: COLORS.primary,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -703,7 +715,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#27ae60',
+    backgroundColor: COLORS.success,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -718,7 +730,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e74c3c',
+    backgroundColor: COLORS.error,
     padding: 16,
     borderRadius: 12,
   },
@@ -731,7 +743,7 @@ const styles = StyleSheet.create({
   approvedNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#27ae6015',
+    backgroundColor: `${COLORS.success}15`,
     padding: 16,
     borderRadius: 12,
   },
@@ -739,6 +751,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 14,
-    color: '#27ae60',
+    color: COLORS.success,
   },
 });

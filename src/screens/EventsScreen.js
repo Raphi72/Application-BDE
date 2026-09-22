@@ -21,6 +21,8 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import EventCard from '../components/EventCard';
 import { supabase } from '../config/supabase';
 import { formatDateTime } from '../utils/dateUtils';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from '../components/PressableScale';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,15 +38,19 @@ LocaleConfig.locales['fr'] = {
   today: "Aujourd'hui"
 };
 LocaleConfig.defaultLocale = 'fr';
+// La semaine commence le lundi (1 = lundi, 0 = dimanche)
+LocaleConfig.locales['fr'].firstDay = 1;
 
 /**
  * Écran de liste des événements
  */
 
 function EventsListScreen({ navigation }) {
+  const { t } = useLanguage();
   // ... state declarations ...
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [userRegistrations, setUserRegistrations] = useState([]);
   const [viewMode, setViewMode] = useState('list');
   const [selectedDate, setSelectedDate] = useState('');
@@ -92,8 +98,7 @@ function EventsListScreen({ navigation }) {
     });
   }, [navigation, viewMode]);
 
-  const loadEvents = async () => {
-    // ... existing implementation ...
+  const loadEvents = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('events')
@@ -119,10 +124,20 @@ function EventsListScreen({ navigation }) {
       setEvents(formattedEvents);
     } catch (error) {
       console.error('Erreur lors du chargement des événements:', error);
-      Alert.alert('Erreur', 'Impossible de charger les événements');
+      Alert.alert(t('common.error'), t('errors.generic'));
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadEvents(true);
+    loadUserRegistrations();
   };
 
   const loadUserRegistrations = async () => {
@@ -250,15 +265,12 @@ function EventsListScreen({ navigation }) {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshing={loading}
-          onRefresh={() => {
-            loadEvents();
-            loadUserRegistrations();
-          }}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="calendar-outline" size={64} color={COLORS.surfaceLight} />
-              <Text style={styles.emptyText}>Aucun événement disponible</Text>
+              <Text style={styles.emptyText}>{t('events.noEvents')}</Text>
             </View>
           }
         />
@@ -266,6 +278,7 @@ function EventsListScreen({ navigation }) {
         <ScrollView style={styles.calendarContainer}>
           <Calendar
             style={styles.calendar}
+            firstDay={1}
             markingType={'custom'}
             theme={{
               backgroundColor: COLORS.surface,
@@ -295,11 +308,13 @@ function EventsListScreen({ navigation }) {
 
           <View style={styles.selectedEventsContainer}>
             <Text style={styles.selectedDateTitle}>
-              {selectedDate ? `Événements du ${formatDateTime(selectedDate).split(' à ')[0]}` : 'Sélectionnez une date'}
+              {selectedDate
+                ? t('events.eventsOnDate', { date: formatDateTime(selectedDate).split(' à ')[0] })
+                : t('events.selectDate')}
             </Text>
 
             {selectedDate && selectedDateEvents.length === 0 ? (
-              <Text style={styles.noEventsText}>Aucun événement ce jour-là</Text>
+              <Text style={styles.noEventsText}>{t('events.noEvents')}</Text>
             ) : (
               selectedDateEvents.map(event => (
                 <View key={event.id} style={styles.miniEventCardWrapper}>
@@ -315,6 +330,7 @@ function EventsListScreen({ navigation }) {
 }
 
 function EventDetailsScreen({ route, navigation }) {
+  const { t } = useLanguage();
   const { event } = route.params;
   const [isRegistered, setIsRegistered] = useState(event.registered);
   // We need local state for counts to update immediately
@@ -337,7 +353,7 @@ function EventDetailsScreen({ route, navigation }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Erreur', 'Vous devez être connecté pour vous inscrire');
+        Alert.alert(t('common.error'), 'Vous devez être connecté pour vous inscrire');
         return;
       }
 
@@ -361,11 +377,11 @@ function EventDetailsScreen({ route, navigation }) {
 
         setIsRegistered(false);
         setCurrentParticipants(prev => Math.max(0, prev - 1));
-        Alert.alert('Désinscription', 'Vous êtes désinscrit de cet événement.');
+        Alert.alert(t('common.success'), t('events.unregisterSuccess'));
       } else {
         // Inscription
         if (currentParticipants >= event.maxParticipants) {
-          Alert.alert('Complet', 'Cet événement est complet.');
+          Alert.alert(t('events.full'), t('events.eventFull'));
           return;
         }
 
@@ -382,11 +398,11 @@ function EventDetailsScreen({ route, navigation }) {
 
         setIsRegistered(true);
         setCurrentParticipants(prev => prev + 1);
-        Alert.alert('Inscription', 'Vous êtes inscrit à cet événement !');
+        Alert.alert(t('common.success'), t('events.registerSuccess'));
       }
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      Alert.alert('Erreur', 'Impossible de modifier l\'inscription');
+      Alert.alert(t('common.error'), 'Impossible de modifier l\'inscription');
     }
   };
 
@@ -434,17 +450,17 @@ function EventDetailsScreen({ route, navigation }) {
           <View style={styles.infoRow}>
             <Ionicons name="people-outline" size={20} color={COLORS.primary} />
             <Text style={styles.infoText}>
-              {currentParticipants}/{event.maxParticipants} participants
+              {currentParticipants}/{event.maxParticipants} {t('events.participants')}
             </Text>
           </View>
         </View>
 
         <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.sectionTitle}>{t('events.description')}</Text>
           <Text style={styles.description}>{event.description}</Text>
         </View>
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.registerButton, isRegistered && styles.registeredButton]}
           onPress={handleRegister}
         >
@@ -454,9 +470,9 @@ function EventDetailsScreen({ route, navigation }) {
             color="#fff"
           />
           <Text style={styles.registerButtonText}>
-            {isRegistered ? 'Se désinscrire' : "Je participe"}
+            {isRegistered ? t('events.unregister') : t('events.register')}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </ScrollView>
   );
@@ -467,7 +483,8 @@ function EventDetailsScreen({ route, navigation }) {
  */
 export default function EventsScreen() {
   const navigation = useNavigation();
-  
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -487,12 +504,12 @@ export default function EventsScreen() {
       <Stack.Screen
         name="EventsList"
         component={EventsListScreen}
-        options={{ title: 'Événements' }}
+        options={{ title: t('events.title') }}
       />
       <Stack.Screen
         name="EventDetails"
         component={EventDetailsScreen}
-        options={{ title: 'Détails' }}
+        options={{ title: t('events.eventDetailsTitle') }}
       />
     </Stack.Navigator>
   );

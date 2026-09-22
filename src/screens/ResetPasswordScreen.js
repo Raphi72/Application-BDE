@@ -12,6 +12,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
+import { useLanguage } from '../context/LanguageContext';
+import { COLORS } from '../constants/theme';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import PressableScale from '../components/PressableScale';
+import FadeIn from '../components/FadeIn';
 
 /**
  * Écran de réinitialisation de mot de passe
@@ -35,24 +40,27 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const { t } = useLanguage();
 
   const handleResetPassword = async () => {
     setErrorMessage(''); // Reset error
-    
+
     // Validation
     if (!password || !confirmPassword) {
-      setErrorMessage('Veuillez remplir tous les champs');
+      setErrorMessage(t('auth.fillAllFields'));
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage('Le mot de passe doit contenir au moins 6 caractères');
+      setErrorMessage(t('auth.weakPassword'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage('Les mots de passe ne correspondent pas');
+      setErrorMessage(t('auth.passwordMismatch'));
       return;
     }
 
@@ -60,36 +68,36 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
 
     try {
       console.log('Tentative de mise à jour du mot de passe...');
-      
-      const { data, error } = await supabase.auth.updateUser({ 
-        password: password 
+
+      const { data, error } = await supabase.auth.updateUser({
+        password: password
       });
 
       console.log('Réponse updateUser:', { data, error });
 
       if (error) {
         console.error('Erreur updateUser:', error);
-        
+
         // Messages d'erreur personnalisés
         let message = error.message;
         if (error.message.includes('should be different')) {
-          message = 'Le nouveau mot de passe doit être différent de l\'ancien.';
+          message = t('auth.passwordMustDiffer');
         } else if (error.message.includes('session') || error.status === 422) {
-          message = 'Session expirée. Veuillez refaire une demande de réinitialisation.';
+          message = t('auth.sessionExpired');
         }
-        
+
         setErrorMessage(message);
         return;
       }
 
       showAlert(
-        'Succès',
-        'Votre mot de passe a été mis à jour avec succès !',
-        [{ text: 'OK', onPress: onPasswordReset }]
+        t('common.success'),
+        t('auth.passwordUpdateSuccess'),
+        [{ text: t('common.ok'), onPress: onPasswordReset }]
       );
     } catch (error) {
       console.error('Exception:', error);
-      setErrorMessage('Une erreur est survenue. Veuillez réessayer.');
+      setErrorMessage(t('auth.genericErrorRetry'));
     } finally {
       setLoading(false);
     }
@@ -101,85 +109,93 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
+        <LanguageSwitcher style={styles.languageSwitcher} />
+
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Ionicons name="key" size={64} color="#7C5CFF" />
+            <Ionicons name="key" size={64} color={COLORS.primary} />
           </View>
-          <Text style={styles.title}>Nouveau mot de passe</Text>
+          <Text style={styles.title}>{t('auth.newPasswordTitle')}</Text>
           <Text style={styles.subtitle}>
-            Créez un nouveau mot de passe pour votre compte
+            {t('auth.newPasswordSubtitle')}
           </Text>
         </View>
 
         <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color="#ccc" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Nouveau mot de passe"
-              placeholderTextColor="#888"
+              placeholder={t('auth.newPasswordPlaceholder')}
+              placeholderTextColor={COLORS.textSecondary}
               value={password}
               onChangeText={(text) => { setPassword(text); setErrorMessage(''); }}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Ionicons
                 name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                 size={20}
-                color="#ccc"
+                color={COLORS.textSecondary}
               />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color="#ccc" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, confirmPasswordFocused && styles.inputContainerFocused]}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Confirmer le mot de passe"
-              placeholderTextColor="#888"
+              placeholder={t('auth.confirmPassword')}
+              placeholderTextColor={COLORS.textSecondary}
               value={confirmPassword}
               onChangeText={(text) => { setConfirmPassword(text); setErrorMessage(''); }}
+              onFocus={() => setConfirmPasswordFocused(true)}
+              onBlur={() => setConfirmPasswordFocused(false)}
               secureTextEntry={!showConfirmPassword}
               autoCapitalize="none"
             />
             <TouchableOpacity
               onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               style={styles.eyeIcon}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Ionicons
                 name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
                 size={20}
-                color="#ccc"
+                color={COLORS.textSecondary}
               />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.hint}>
-            Le mot de passe doit contenir au moins 6 caractères
+            {t('auth.weakPassword')}
           </Text>
 
           {errorMessage ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle" size={18} color="#ff6b6b" />
+            <FadeIn style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={18} color={COLORS.error} />
               <Text style={styles.errorText}>{errorMessage}</Text>
-            </View>
+            </FadeIn>
           ) : null}
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleResetPassword}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.text} />
             ) : (
-              <Text style={styles.buttonText}>Mettre à jour le mot de passe</Text>
+              <Text style={styles.buttonText}>{t('auth.updatePasswordButton')}</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -189,12 +205,18 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0E13',
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+  },
+  languageSwitcher: {
+    position: 'absolute',
+    top: 8,
+    right: 0,
+    zIndex: 1,
   },
   header: {
     alignItems: 'center',
@@ -204,7 +226,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#7C5CFF22',
+    backgroundColor: `${COLORS.primary}22`,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -212,12 +234,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: COLORS.text,
     marginTop: 16,
   },
   subtitle: {
     fontSize: 16,
-    color: '#888',
+    color: COLORS.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -227,13 +249,16 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E24',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
     height: 56,
     borderWidth: 1,
-    borderColor: '#7C5CFF',
+    borderColor: COLORS.border,
+  },
+  inputContainerFocused: {
+    borderColor: COLORS.primary,
   },
   inputIcon: {
     marginRight: 12,
@@ -241,14 +266,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#fff',
+    color: COLORS.text,
     backgroundColor: 'transparent',
   },
   eyeIcon: {
     padding: 4,
   },
   hint: {
-    color: '#888',
+    color: COLORS.textSecondary,
     fontSize: 14,
     marginBottom: 20,
     textAlign: 'center',
@@ -256,21 +281,21 @@ const styles = StyleSheet.create({
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    backgroundColor: `${COLORS.error}26`,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: `${COLORS.error}4D`,
   },
   errorText: {
-    color: '#ff6b6b',
+    color: COLORS.error,
     fontSize: 14,
     marginLeft: 8,
     flex: 1,
   },
   button: {
-    backgroundColor: '#7C5CFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
@@ -281,7 +306,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: 'bold',
   },

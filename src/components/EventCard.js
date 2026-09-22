@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDateTime, daysUntil } from '../utils/dateUtils';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from './PressableScale';
 
 /**
  * Composant Card pour afficher un événement
@@ -10,6 +12,7 @@ import { COLORS, SHADOWS } from '../constants/theme';
  * @param {Function} onPress - Fonction appelée au clic
  */
 const EventCard = ({ event, onPress }) => {
+  const { t } = useLanguage();
   const days = daysUntil(event.date);
   const isPast = days < 0;
   const isToday = days === 0;
@@ -25,7 +28,7 @@ const EventCard = ({ event, onPress }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <PressableScale style={styles.card} onPress={onPress}>
       <Image source={getImageSource(event.image)} style={styles.image} />
       <View style={styles.content}>
         <View style={styles.header}>
@@ -33,7 +36,7 @@ const EventCard = ({ event, onPress }) => {
           {event.registered && (
             <View style={styles.badge}>
               <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-              <Text style={styles.badgeText}>Inscrit</Text>
+              <Text style={styles.badgeText}>{t('events.registered')}</Text>
             </View>
           )}
         </View>
@@ -54,7 +57,7 @@ const EventCard = ({ event, onPress }) => {
           <View style={styles.participants}>
             <Ionicons name="people-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.participantsText}>
-              {event.currentParticipants}/{event.maxParticipants} participants
+              {event.currentParticipants}/{event.maxParticipants} {t('events.participants')}
             </Text>
           </View>
 
@@ -67,14 +70,14 @@ const EventCard = ({ event, onPress }) => {
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.m,
     marginBottom: 20,
     overflow: 'hidden',
     borderWidth: 1,

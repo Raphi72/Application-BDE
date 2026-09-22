@@ -35,6 +35,13 @@ export const SPACING = {
     xl: 32,
 };
 
+// Échelle unique de rayons de bordure : petit élément (chip, input) / carte / grand conteneur
+export const RADIUS = {
+    s: 8,
+    m: 16,
+    l: 20,
+};
+
 export const FONTS = {
     regular: 'System', // On garde la font système pour l'instant
     bold: 'System',

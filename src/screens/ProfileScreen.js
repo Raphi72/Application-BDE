@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../config/supabase';
 import { COLORS, SHADOWS } from '../constants/theme';
+import PressableScale from '../components/PressableScale';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -282,7 +283,7 @@ export default function ProfileScreen({ navigation }) {
       )}
 
       <View style={styles.section}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.menuItem, styles.dangerItem]}
           onPress={handleSignOut}
         >
@@ -290,17 +291,17 @@ export default function ProfileScreen({ navigation }) {
           <Text style={[styles.menuItemText, styles.dangerText]}>
             {t('auth.logout')}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.menuItem, styles.deleteItem]}
           onPress={openDeleteModal}
         >
-          <Ionicons name="trash-outline" size={24} color="#ff0000" />
+          <Ionicons name="trash-outline" size={24} color={COLORS.error} />
           <Text style={[styles.menuItemText, styles.deleteText]}>
             {t('profile.deleteAccount')}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <View style={styles.footer}>
@@ -371,7 +372,7 @@ export default function ProfileScreen({ navigation }) {
             {deleteStep === 1 && (
               <>
                 <View style={styles.warningBox}>
-                  <Ionicons name="warning" size={40} color="#ff0000" />
+                  <Ionicons name="warning" size={40} color={COLORS.error} />
                   <Text style={styles.warningTitle}>Attention !</Text>
                   <Text style={styles.warningText}>
                     {t('profile.deleteAccountWarning')}
@@ -412,7 +413,7 @@ export default function ProfileScreen({ navigation }) {
             {deleteStep === 2 && (
               <>
                 <View style={styles.warningBox}>
-                  <Ionicons name="alert-circle" size={40} color="#ff0000" />
+                  <Ionicons name="alert-circle" size={40} color={COLORS.error} />
                   <Text style={styles.warningTitle}>{t('profile.firstConfirmation')}</Text>
                   <Text style={styles.warningText}>
                     {t('profile.deleteAccountConfirm1')}{'\n\n'}
@@ -446,7 +447,7 @@ export default function ProfileScreen({ navigation }) {
             {deleteStep === 3 && (
               <>
                 <View style={[styles.warningBox, styles.finalWarningBox]}>
-                  <Ionicons name="skull" size={40} color="#ff0000" />
+                  <Ionicons name="skull" size={40} color={COLORS.error} />
                   <Text style={styles.warningTitle}>{t('profile.lastChance')}</Text>
                   <Text style={styles.warningText}>
                     {t('profile.deleteAccountConfirm2')}
@@ -465,7 +466,7 @@ export default function ProfileScreen({ navigation }) {
                     <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
+                  <PressableScale
                     style={[styles.deleteButton, styles.finalDeleteButton]}
                     onPress={deleteAccount}
                     disabled={deleteLoading}
@@ -477,7 +478,7 @@ export default function ProfileScreen({ navigation }) {
                         {t('profile.deleteAccountFinal')}
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               </>
             )}
@@ -603,11 +604,11 @@ const styles = StyleSheet.create({
     color: COLORS.error,
   },
   deleteItem: {
-    borderColor: 'rgba(255, 0, 0, 0.5)',
-    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderColor: `${COLORS.error}80`,
+    backgroundColor: `${COLORS.error}1A`,
   },
   deleteText: {
-    color: '#ff0000',
+    color: COLORS.error,
   },
   footer: {
     alignItems: 'center',
@@ -647,22 +648,22 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   warningBox: {
-    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    backgroundColor: `${COLORS.error}1A`,
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 0, 0, 0.3)',
+    borderColor: `${COLORS.error}4D`,
   },
   finalWarningBox: {
-    backgroundColor: 'rgba(255, 0, 0, 0.2)',
-    borderColor: '#ff0000',
+    backgroundColor: `${COLORS.error}33`,
+    borderColor: COLORS.error,
   },
   warningTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ff0000',
+    color: COLORS.error,
     marginTop: 12,
     marginBottom: 8,
   },
@@ -689,7 +690,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorText: {
-    color: '#ff0000',
+    color: COLORS.error,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -715,7 +716,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deleteButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: COLORS.error,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -724,7 +725,7 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   finalDeleteButton: {
-    backgroundColor: '#ff0000',
+    backgroundColor: COLORS.error,
   },
   deleteButtonText: {
     color: '#fff',

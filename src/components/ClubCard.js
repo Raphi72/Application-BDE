@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from './PressableScale';
 
 /**
  * Composant Card pour afficher un club
@@ -9,6 +11,7 @@ import { COLORS, SHADOWS } from '../constants/theme';
  * @param {Function} onPress - Fonction appelée au clic
  */
 const ClubCard = ({ club, onPress }) => {
+  const { t } = useLanguage();
   // Helper pour gérer les images multiples (JSON) ou simple URL
   const getImageSource = (img) => {
     if (!img) return null;
@@ -20,7 +23,7 @@ const ClubCard = ({ club, onPress }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <PressableScale style={styles.card} onPress={onPress}>
       <Image source={getImageSource(club.image)} style={styles.image} />
       <View style={styles.content}>
         <View style={styles.header}>
@@ -37,7 +40,7 @@ const ClubCard = ({ club, onPress }) => {
         <View style={styles.footer}>
           <View style={styles.info}>
             <Ionicons name="people-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>{club.members} membres</Text>
+            <Text style={styles.infoText}>{club.members} {t('clubs.members')}</Text>
           </View>
           <View style={styles.info}>
             <Ionicons name="person-outline" size={16} color={COLORS.textSecondary} />
@@ -45,14 +48,14 @@ const ClubCard = ({ club, onPress }) => {
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.m,
     marginBottom: 16,
     overflow: 'hidden',
     borderWidth: 1,

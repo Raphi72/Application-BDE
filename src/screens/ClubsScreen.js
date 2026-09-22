@@ -18,6 +18,8 @@ import ClubCard from '../components/ClubCard';
 import { supabase } from '../config/supabase';
 import { COLORS, SHADOWS } from '../constants/theme';
 import ClubProposalScreen from './ClubProposalScreen';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from '../components/PressableScale';
 
 const Stack = createNativeStackNavigator();
 
@@ -168,15 +170,17 @@ const charteStyles = StyleSheet.create({
  * Écran de liste des clubs
  */
 function ClubsListScreen({ navigation }) {
+  const { t } = useLanguage();
   const [clubs, setClubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showCharteModal, setShowCharteModal] = useState(false);
 
   useEffect(() => {
     loadClubs();
   }, []);
 
-  const loadClubs = async () => {
+  const loadClubs = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('clubs')
@@ -200,8 +204,17 @@ function ClubsListScreen({ navigation }) {
     } catch (error) {
       console.error('Erreur lors du chargement des clubs:', error);
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadClubs(true);
   };
 
   const renderClub = ({ item }) => (
@@ -214,7 +227,7 @@ function ClubsListScreen({ navigation }) {
   const renderHeader = () => (
     <View style={styles.headerSection}>
       {/* Bouton Voir la Charte */}
-      <TouchableOpacity 
+      <PressableScale
         style={styles.charteButton}
         onPress={() => setShowCharteModal(true)}
       >
@@ -222,25 +235,25 @@ function ClubsListScreen({ navigation }) {
           <Ionicons name="document-text" size={24} color={COLORS.primary} />
         </View>
         <View style={styles.charteButtonContent}>
-          <Text style={styles.charteButtonTitle}>Charte Création de Club</Text>
+          <Text style={styles.charteButtonTitle}>{t('clubs.charter')}</Text>
           <Text style={styles.charteButtonSubtitle}>
             Consultez les règles et critères
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-      </TouchableOpacity>
+      </PressableScale>
 
       {/* Bouton Proposer un Club */}
-      <TouchableOpacity 
+      <PressableScale
         style={styles.proposeButton}
         onPress={() => navigation.navigate('ClubProposal')}
       >
         <Ionicons name="add-circle" size={24} color="#fff" />
-        <Text style={styles.proposeButtonText}>Proposer un nouveau club</Text>
-      </TouchableOpacity>
+        <Text style={styles.proposeButtonText}>{t('clubs.proposeClub')}</Text>
+      </PressableScale>
 
       {/* Titre de la liste */}
-      <Text style={styles.listTitle}>Clubs & Associations</Text>
+      <Text style={styles.listTitle}>{t('clubs.pageTitle')}</Text>
     </View>
   );
 
@@ -260,13 +273,13 @@ function ClubsListScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshing={loading}
-        onRefresh={loadClubs}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>Aucun club disponible</Text>
+            <Text style={styles.emptyText}>{t('clubs.noClubs')}</Text>
           </View>
         }
       />
@@ -284,6 +297,7 @@ function ClubsListScreen({ navigation }) {
  * Écran de détails d'un club
  */
 function ClubDetailsScreen({ route }) {
+  const { t } = useLanguage();
   const { club } = route.params;
   const { width } = Dimensions.get('window');
 
@@ -345,12 +359,12 @@ Cordialement`);
         <View style={styles.infoSection}>
           <View style={styles.infoRow}>
             <Ionicons name="people-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>{club.members} membres</Text>
+            <Text style={styles.infoText}>{club.members} {t('clubs.members')}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Ionicons name="person-outline" size={20} color={COLORS.secondary} />
-            <Text style={styles.infoText}>Président : {club.president}</Text>
+            <Text style={styles.infoText}>{t('clubs.president')} : {club.president}</Text>
           </View>
 
           {club.contact && (
@@ -362,18 +376,18 @@ Cordialement`);
         </View>
 
         <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.sectionTitle}>{t('form.description')}</Text>
           <Text style={styles.description}>{club.description}</Text>
         </View>
 
         {/* Bouton Contacter le président */}
-        <TouchableOpacity
+        <PressableScale
           style={styles.contactButton}
           onPress={handleContactPresident}
         >
           <Ionicons name="mail-outline" size={20} color="#fff" />
-          <Text style={styles.contactButtonText}>Contacter le président</Text>
-        </TouchableOpacity>
+          <Text style={styles.contactButtonText}>{t('clubs.contactPresident')}</Text>
+        </PressableScale>
       </View>
     </ScrollView>
   );
@@ -384,7 +398,8 @@ Cordialement`);
  */
 export default function ClubsScreen() {
   const navigation = useNavigation();
-  
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -405,7 +420,7 @@ export default function ClubsScreen() {
         name="ClubsList"
         component={ClubsListScreen}
         options={{
-          title: 'Clubs & Associations',
+          title: t('clubs.pageTitle'),
           headerRight: () => {
             const parentNav = navigation.getParent();
             return (
@@ -417,7 +432,7 @@ export default function ClubsScreen() {
                     navigation.navigate('Profile');
                   }
                 }}
-                style={{ marginRight: 24, padding: 4 }} // un peu plus à droite
+                style={{ marginRight: 16, padding: 8 }}
               >
                 <Ionicons name="person-circle" size={32} color={COLORS.primary} />
               </TouchableOpacity>
@@ -428,12 +443,12 @@ export default function ClubsScreen() {
       <Stack.Screen
         name="ClubDetails"
         component={ClubDetailsScreen}
-        options={{ title: 'Détails du club' }}
+        options={{ title: t('clubs.clubDetailsTitle') }}
       />
       <Stack.Screen
         name="ClubProposal"
         component={ClubProposalScreen}
-        options={{ title: 'Proposer un club' }}
+        options={{ title: t('clubs.proposeClub') }}
       />
     </Stack.Navigator>
   );

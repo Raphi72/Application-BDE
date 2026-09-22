@@ -30,6 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../constants/theme';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * Contenu de la charte pour affichage dans l'app
@@ -106,6 +107,7 @@ Le président du club doit envoyer chaque mois un rapport au Président du BDE c
  * Modal pour afficher la charte
  */
 function CharteModal({ visible, onClose, onAccept, showAcceptButton = false }) {
+  const { t } = useLanguage();
   return (
     <Modal
       visible={visible}
@@ -138,7 +140,7 @@ function CharteModal({ visible, onClose, onAccept, showAcceptButton = false }) {
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.acceptButton} onPress={onAccept}>
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.acceptButtonText}>J'accepte la charte</Text>
+              <Text style={styles.acceptButtonText}>{t('clubs.acceptCharter')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -152,6 +154,7 @@ function CharteModal({ visible, onClose, onAccept, showAcceptButton = false }) {
  */
 export default function ClubProposalScreen({ navigation }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [charteAccepted, setCharteAccepted] = useState(false);
   const [showCharteModal, setShowCharteModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -217,50 +220,50 @@ export default function ClubProposalScreen({ navigation }) {
 
   const validateForm = () => {
     if (!clubName.trim()) {
-      showAlert('Erreur', 'Le nom du club est requis');
+      showAlert(t('common.error'), 'Le nom du club est requis');
       return false;
     }
     if (!clubObjective.trim()) {
-      showAlert('Erreur', 'L\'objectif du club est requis');
+      showAlert(t('common.error'), 'L\'objectif du club est requis');
       return false;
     }
     if (!presidentName.trim()) {
-      showAlert('Erreur', 'Le nom du président est requis');
+      showAlert(t('common.error'), 'Le nom du président est requis');
       return false;
     }
     if (!presidentEmail.trim()) {
-      showAlert('Erreur', 'L\'email du président est requis');
+      showAlert(t('common.error'), 'L\'email du président est requis');
       return false;
     }
-    
+
     // Valider l'email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(presidentEmail.trim())) {
-      showAlert('Erreur', 'Veuillez entrer une adresse email valide');
+      showAlert(t('common.error'), t('auth.enterValidEmail'));
       return false;
     }
 
     if (!maxCapacity.trim()) {
-      showAlert('Erreur', 'La capacité maximale est requise');
+      showAlert(t('common.error'), 'La capacité maximale est requise');
       return false;
     }
-    
+
     const capacity = parseInt(maxCapacity, 10);
     if (isNaN(capacity) || capacity < 10) {
-      showAlert('Erreur', 'La capacité maximale doit être d\'au moins 10 membres');
+      showAlert(t('common.error'), 'La capacité maximale doit être d\'au moins 10 membres');
       return false;
     }
 
     if (!eventIdeas.trim()) {
-      showAlert('Erreur', 'Les idées d\'événements sont requises');
+      showAlert(t('common.error'), 'Les idées d\'événements sont requises');
       return false;
     }
     if (!category) {
-      showAlert('Erreur', 'Veuillez sélectionner une catégorie');
+      showAlert(t('common.error'), 'Veuillez sélectionner une catégorie');
       return false;
     }
     if (!charteAccepted) {
-      showAlert('Erreur', 'Vous devez accepter la charte pour soumettre votre proposition');
+      showAlert(t('common.error'), 'Vous devez accepter la charte pour soumettre votre proposition');
       return false;
     }
 
@@ -307,11 +310,11 @@ export default function ClubProposalScreen({ navigation }) {
       showAlert(
         'Proposition envoyée ! 🎉',
         'Votre demande de création de club a été soumise avec succès. Le BDE examinera votre dossier et vous contactera prochainement.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      showAlert('Erreur', `Une erreur est survenue: ${error.message || 'Veuillez réessayer.'}`);
+      showAlert(t('common.error'), `${t('errors.generic')}: ${error.message || t('errors.tryAgain')}`);
     } finally {
       setLoading(false);
     }
@@ -325,9 +328,18 @@ export default function ClubProposalScreen({ navigation }) {
     );
   }
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return COLORS.warning;
+      case 'under_review': return COLORS.primary;
+      case 'approved': return COLORS.success;
+      default: return COLORS.textSecondary;
+    }
+  };
+
   if (existingProposal) {
     const isApproved = existingProposal.status === 'approved';
-    
+
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.existingProposalContainer}>
@@ -335,10 +347,10 @@ export default function ClubProposalScreen({ navigation }) {
             <Ionicons 
               name={isApproved ? "checkmark-circle" : "document-text"} 
               size={64} 
-              color={isApproved ? "#27ae60" : COLORS.primary} 
+              color={isApproved ? COLORS.success : COLORS.primary}
             />
             <Text style={styles.existingProposalTitle}>
-              {isApproved ? 'Club créé !' : 'Proposition en cours'}
+              {isApproved ? t('clubs.proposalApproved') : 'Proposition en cours'}
             </Text>
             <Text style={styles.existingProposalText}>
               {isApproved 
@@ -354,14 +366,12 @@ export default function ClubProposalScreen({ navigation }) {
               <Text style={styles.proposalInfoLabel}>Statut :</Text>
               <View style={[
                 styles.statusBadge,
-                existingProposal.status === 'pending' && styles.statusPending,
-                existingProposal.status === 'under_review' && styles.statusReview,
-                existingProposal.status === 'approved' && styles.statusApproved,
+                { backgroundColor: `${getStatusColor(existingProposal.status)}20` },
               ]}>
-                <Text style={styles.statusText}>
-                  {existingProposal.status === 'pending' && 'En attente'}
-                  {existingProposal.status === 'under_review' && 'En cours d\'examen'}
-                  {existingProposal.status === 'approved' && 'Approuvé ✓'}
+                <Text style={[styles.statusText, { color: getStatusColor(existingProposal.status) }]}>
+                  {existingProposal.status === 'pending' && t('admin.pending')}
+                  {existingProposal.status === 'under_review' && t('admin.underReview')}
+                  {existingProposal.status === 'approved' && `${t('admin.approved')} ✓`}
                 </Text>
               </View>
             </View>
@@ -390,7 +400,7 @@ export default function ClubProposalScreen({ navigation }) {
           <View style={styles.headerIcon}>
             <Ionicons name="add-circle" size={40} color={COLORS.primary} />
           </View>
-          <Text style={styles.headerTitle}>Proposer un nouveau club</Text>
+          <Text style={styles.headerTitle}>{t('clubs.proposeClub')}</Text>
           <Text style={styles.headerSubtitle}>
             Remplissez ce formulaire pour soumettre votre projet de club au BDE
           </Text>
@@ -401,7 +411,7 @@ export default function ClubProposalScreen({ navigation }) {
           <View style={styles.charteBanner}>
             <Ionicons name="document-text-outline" size={24} color={COLORS.primary} />
             <View style={styles.charteBannerText}>
-              <Text style={styles.charteBannerTitle}>Charte de création de club</Text>
+              <Text style={styles.charteBannerTitle}>{t('clubs.charter')}</Text>
               <Text style={styles.charteBannerSubtitle}>
                 Lisez et acceptez la charte avant de continuer
               </Text>
@@ -413,7 +423,7 @@ export default function ClubProposalScreen({ navigation }) {
             onPress={() => setShowCharteModal(true)}
           >
             <Ionicons name="eye-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.viewCharteText}>Voir la charte complète</Text>
+            <Text style={styles.viewCharteText}>{t('clubs.viewCharter')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -448,7 +458,7 @@ export default function ClubProposalScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Informations du club</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nom du club *</Text>
+            <Text style={styles.label}>{t('clubs.clubName')} *</Text>
             <TextInput
               style={styles.input}
               value={clubName}
@@ -459,7 +469,7 @@ export default function ClubProposalScreen({ navigation }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Catégorie *</Text>
+            <Text style={styles.label}>{t('form.category')} *</Text>
             <View style={styles.categoryGrid}>
               {categories.map((cat) => (
                 <TouchableOpacity
@@ -482,7 +492,7 @@ export default function ClubProposalScreen({ navigation }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Objectif du club *</Text>
+            <Text style={styles.label}>{t('clubs.objective')} *</Text>
             <Text style={styles.hint}>
               Décrivez l'objet de votre club et comment il contribuera à la vie étudiante
             </Text>
@@ -527,7 +537,7 @@ export default function ClubProposalScreen({ navigation }) {
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nom du président *</Text>
+            <Text style={styles.label}>{t('clubs.presidentName')} *</Text>
             <TextInput
               style={styles.input}
               value={presidentName}
@@ -538,7 +548,7 @@ export default function ClubProposalScreen({ navigation }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email du président *</Text>
+            <Text style={styles.label}>{t('clubs.presidentEmail')} *</Text>
             <TextInput
               style={styles.input}
               value={presidentEmail}
@@ -553,7 +563,7 @@ export default function ClubProposalScreen({ navigation }) {
 
         {/* Événements */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Idées d'événements</Text>
+          <Text style={styles.sectionTitle}>{t('clubs.eventIdeas')}</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Événements prévus pour l'année *</Text>
@@ -572,7 +582,7 @@ export default function ClubProposalScreen({ navigation }) {
 
         {/* Informations supplémentaires */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Informations supplémentaires</Text>
+          <Text style={styles.sectionTitle}>{t('clubs.additionalInfo')}</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Commentaires (optionnel)</Text>
@@ -603,7 +613,7 @@ export default function ClubProposalScreen({ navigation }) {
           ) : (
             <>
               <Ionicons name="send" size={20} color="#fff" />
-              <Text style={styles.submitButtonText}>Soumettre ma proposition</Text>
+              <Text style={styles.submitButtonText}>{t('clubs.submitProposal')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -952,19 +962,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  statusPending: {
-    backgroundColor: '#FFF3CD',
-  },
-  statusReview: {
-    backgroundColor: '#CCE5FF',
-  },
-  statusApproved: {
-    backgroundColor: '#D4EDDA',
-  },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333',
   },
   existingProposalHint: {
     fontSize: 12,

@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
@@ -18,13 +19,16 @@ import NewsCard from '../../components/NewsCard';
 import { showImagePicker, uploadImage } from '../../services/imageUpload';
 import { COLORS, SHADOWS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
+import { useLanguage } from '../../context/LanguageContext';
 
 /**
  * Écran admin pour gérer les actualités
  */
 export default function AdminNewsScreen() {
+  const { t } = useLanguage();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingNews, setEditingNews] = useState(null);
 
@@ -41,7 +45,7 @@ export default function AdminNewsScreen() {
     loadNews();
   }, []);
 
-  const loadNews = async () => {
+  const loadNews = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('news')
@@ -51,10 +55,43 @@ export default function AdminNewsScreen() {
       if (error) throw error;
       setNews(data || []);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les actualités');
+      Alert.alert(t('common.error'), 'Impossible de charger les actualités');
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadNews(true);
+  };
+
+  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
+  const hasUnsavedChanges = () => {
+    return Boolean(title || content || images.length > 0);
+  };
+
+  const requestCloseModal = async () => {
+    if (hasUnsavedChanges()) {
+      const confirmClose = Platform.OS === 'web'
+        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
+        : await new Promise((resolve) => {
+            Alert.alert(
+              t('admin.discardChangesTitle'),
+              t('admin.discardChangesConfirm'),
+              [
+                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
+              ]
+            );
+          });
+      if (!confirmClose) return;
+    }
+    setModalVisible(false);
   };
 
   const openModal = (newsItem = null) => {
@@ -91,23 +128,23 @@ export default function AdminNewsScreen() {
           try {
             const uploadedUrl = await uploadImage(selectedImage.uri, 'news');
             setImages(prev => [...prev, uploadedUrl]);
-            Alert.alert('Succès', 'Image ajoutée !');
+            Alert.alert(t('common.success'), 'Image ajoutée !');
           } catch (error) {
             console.error('Erreur upload:', error);
-            Alert.alert('Erreur', "Impossible d'uploader l'image.");
+            Alert.alert(t('common.error'), "Impossible d'uploader l'image.");
           } finally {
             setUploading(false);
           }
         }
       });
     } catch (error) {
-      Alert.alert('Erreur', error.message || 'Impossible de sélectionner une image');
+      Alert.alert(t('common.error'), error.message || 'Impossible de sélectionner une image');
     }
   };
 
   const handleSave = async () => {
     if (!title || !content) {
-      Alert.alert('Erreur', 'Veuillez remplir le titre et le contenu');
+      Alert.alert(t('common.error'), 'Veuillez remplir le titre et le contenu');
       return;
     }
 
@@ -129,35 +166,35 @@ export default function AdminNewsScreen() {
           .eq('id', editingNews.id);
 
         if (error) throw error;
-        Alert.alert('Succès', 'Actualité mise à jour');
+        Alert.alert(t('common.success'), t('admin.saveSuccess'));
       } else {
         const { error } = await supabase
           .from('news')
           .insert([newsData]);
 
         if (error) throw error;
-        
+
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewNews(title);
-        
-        Alert.alert('Succès', 'Actualité créée et notification envoyée');
+
+        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
       setModalVisible(false);
       loadNews();
     } catch (error) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
   const handleDelete = async (newsId) => {
     Alert.alert(
-      'Confirmer la suppression',
-      'Êtes-vous sûr de vouloir supprimer cette actualité ?',
+      t('admin.deleteConfirm'),
+      t('admin.deleteNewsConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -169,7 +206,7 @@ export default function AdminNewsScreen() {
               if (error) throw error;
               loadNews();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer l\'actualité');
+              Alert.alert(t('common.error'), t('admin.deleteError'));
             }
           },
         },
@@ -182,7 +219,7 @@ export default function AdminNewsScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
           <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Nouvelle actualité</Text>
+          <Text style={styles.addButtonText}>{t('admin.newNews')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -204,41 +241,41 @@ export default function AdminNewsScreen() {
                 onPress={() => openModal(item)}
               >
                 <Ionicons name="create-outline" size={20} color={COLORS.primary} />
-                <Text style={styles.editButtonText}>Modifier</Text>
+                <Text style={styles.editButtonText}>{t('common.edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDelete(item.id)}
               >
                 <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                <Text style={styles.deleteButtonText}>Supprimer</Text>
+                <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={loadNews}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
 
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={requestCloseModal}
       >
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {editingNews ? 'Modifier l\'actualité' : 'Nouvelle actualité'}
+              {editingNews ? t('admin.editNews') : t('admin.newNews')}
             </Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={requestCloseModal}>
               <Ionicons name="close" size={28} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Titre *</Text>
+            <Text style={styles.label}>{t('form.title')} *</Text>
             <TextInput
               style={styles.input}
               value={title}
@@ -247,7 +284,7 @@ export default function AdminNewsScreen() {
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Contenu *</Text>
+            <Text style={styles.label}>{t('form.content')} *</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={content}
@@ -258,7 +295,7 @@ export default function AdminNewsScreen() {
               numberOfLines={6}
             />
 
-            <Text style={styles.label}>Catégorie</Text>
+            <Text style={styles.label}>{t('form.category')}</Text>
             <View style={styles.categoryContainer}>
               {categories.map((cat) => (
                 <TouchableOpacity
@@ -281,7 +318,7 @@ export default function AdminNewsScreen() {
               ))}
             </View>
 
-            <Text style={styles.label}>Images</Text>
+            <Text style={styles.label}>{t('admin.images')}</Text>
             <View style={styles.imageSection}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
                 {images.map((img, index) => (
@@ -310,13 +347,13 @@ export default function AdminNewsScreen() {
               </ScrollView>
 
               <Text style={styles.imageHint}>
-                Ajoutez une ou plusieurs images (slider)
+                {t('admin.imageHint')}
               </Text>
             </View>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>
-                {editingNews ? 'Mettre à jour' : 'Créer'}
+                {editingNews ? t('common.update') : t('common.create')}
               </Text>
             </TouchableOpacity>
           </View>

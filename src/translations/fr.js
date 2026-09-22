@@ -59,6 +59,57 @@ export default {
     passwordMismatch: 'Les mots de passe ne correspondent pas',
     invalidEmail: 'Email invalide',
     weakPassword: 'Le mot de passe doit contenir au moins 6 caractères',
+
+    // Écran de connexion
+    loginSubtitle: 'Connectez-vous à votre compte',
+    fillAllFields: 'Veuillez remplir tous les champs',
+    emailConfirmRequired: 'Veuillez confirmer votre email avant de vous connecter',
+    genericErrorRetry: 'Une erreur est survenue. Veuillez réessayer.',
+
+    // Mot de passe oublié
+    forgotPasswordTitle: 'Mot de passe oublié',
+    forgotPasswordDescription: 'Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.',
+    yourEmailAddress: 'Votre adresse email',
+    rateLimitWarning: "Pour des raisons de sécurité, vous ne pouvez pas demander plus d'un lien par heure.",
+    sendLink: 'Envoyer le lien',
+    tooManyRequests: 'Trop de demandes',
+    tooManyRequestsMessage: 'Vous avez fait trop de demandes. Veuillez attendre quelques minutes avant de réessayer.',
+    enterValidEmail: 'Veuillez entrer une adresse email valide',
+    enterYourEmail: 'Veuillez entrer votre adresse email',
+    emailSentTitle: 'Email envoyé !',
+    emailSentTo: 'Un email de réinitialisation a été envoyé à',
+    checkInboxSpam: 'Vérifiez votre boîte de réception et vos spams.',
+    linkExpiresIn1h: 'Le lien expire dans 1 heure.',
+    resendWait60s: 'Pas reçu ? Attendez 60 secondes avant de redemander.',
+    backToLogin: 'Retour à la connexion',
+
+    // Écran d'inscription
+    registerTitle: 'Créer un compte',
+    registerSubtitle: 'Rejoignez la communauté BDE',
+    fullName: 'Nom complet',
+    emailDomainPlaceholder: 'Email (@aivancity.education / .ai)',
+    emailDomainRestriction: 'Seules les adresses @aivancity.education et @aivancity.ai sont autorisées',
+    emailDomainRestrictionRegister: "Seules les adresses @aivancity.education et @aivancity.ai peuvent s'inscrire.",
+    tooManyAttempts: 'Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.',
+    emailAlreadyUsed: 'Cet email est déjà utilisé. Connectez-vous ou utilisez un autre email.',
+    invalidEmailAddress: 'Adresse email invalide.',
+    signupSuccessTitle: 'Inscription réussie',
+    signupSuccessMessage: 'Votre compte a été créé et vous êtes connecté. Bienvenue !',
+    checkEmailTitle: 'Vérifiez votre email !',
+    confirmationEmailSentTo: 'Un email de confirmation a été envoyé à',
+    clickLinkToActivate: "Cliquez sur le lien dans l'email pour activer votre compte",
+    linkExpiresIn24h: 'Le lien expire dans 24 heures',
+    checkSpamFolder: "Pensez à vérifier vos spams si vous ne trouvez pas l'email",
+    goToLogin: 'Aller à la connexion',
+
+    // Réinitialisation du mot de passe
+    newPasswordTitle: 'Nouveau mot de passe',
+    newPasswordSubtitle: 'Créez un nouveau mot de passe pour votre compte',
+    newPasswordPlaceholder: 'Nouveau mot de passe',
+    updatePasswordButton: 'Mettre à jour le mot de passe',
+    passwordUpdateSuccess: 'Votre mot de passe a été mis à jour avec succès !',
+    passwordMustDiffer: "Le nouveau mot de passe doit être différent de l'ancien.",
+    sessionExpired: 'Session expirée. Veuillez refaire une demande de réinitialisation.',
   },
 
   // Profil
@@ -117,6 +168,9 @@ export default {
     registerError: "Erreur lors de l'inscription",
     alreadyRegistered: 'Vous êtes déjà inscrit',
     eventFull: "L'événement est complet",
+    eventDetailsTitle: 'Détails',
+    eventsOnDate: 'Événements du {{date}}',
+    selectDate: 'Sélectionnez une date',
   },
 
   // Sondages
@@ -136,6 +190,7 @@ export default {
     pollEnded: 'Ce sondage est terminé',
     results: 'Résultats',
     totalVotes: 'Total des votes',
+    pollDetailsTitle: 'Détails du sondage',
   },
 
   // Actualités
@@ -152,6 +207,7 @@ export default {
       partnership: 'Partenariat',
       other: 'Autre',
     },
+    articleDetailsTitle: 'Article',
   },
 
   // Clubs
@@ -184,11 +240,20 @@ export default {
     proposalExists: 'Vous avez déjà une proposition en cours',
     clubCreated: 'Votre club a été créé',
     minMembers: 'Minimum 10 membres requis',
+    pageTitle: 'Clubs & Associations',
+    clubDetailsTitle: 'Détails du club',
+  },
+
+  // Galerie
+  gallery: {
+    title: 'Galerie',
+    noAlbums: 'Aucun album disponible',
   },
 
   // Admin
   admin: {
     title: 'Administration',
+    welcome: 'Bienvenue, {{email}}',
     events: 'Gérer les événements',
     polls: 'Gérer les sondages',
     news: 'Gérer les actualités',
@@ -228,6 +293,9 @@ export default {
     images: 'Images',
     addImage: 'Ajouter une image',
     imageHint: 'Ajoutez une ou plusieurs images (slider)',
+    discardChangesTitle: 'Modifications non enregistrées',
+    discardChangesConfirm: 'Voulez-vous abandonner vos modifications ?',
+    discardChanges: 'Abandonner',
   },
 
   // Notifications

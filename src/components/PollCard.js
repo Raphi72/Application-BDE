@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate, isPastDate } from '../utils/dateUtils';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
+import PressableScale from './PressableScale';
 
 /**
  * Composant Card pour afficher un sondage
@@ -10,17 +12,18 @@ import { COLORS, SHADOWS } from '../constants/theme';
  * @param {Function} onPress - Fonction appelée au clic
  */
 const PollCard = ({ poll, onPress }) => {
+  const { t } = useLanguage();
   const isPast = isPastDate(poll.endDate);
   const hasVoted = poll.userVote !== null;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <PressableScale style={styles.card} onPress={onPress}>
       <View style={styles.header}>
         <Text style={styles.question}>{poll.question}</Text>
         {hasVoted && (
           <View style={styles.votedBadge}>
             <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-            <Text style={styles.votedText}>Voté</Text>
+            <Text style={styles.votedText}>{t('polls.voted')}</Text>
           </View>
         )}
       </View>
@@ -55,22 +58,22 @@ const PollCard = ({ poll, onPress }) => {
           <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
           <Text style={[styles.footerText, isPast && styles.pastDate]}>
             {isPast
-              ? 'Terminé'
+              ? t('polls.ended')
               : poll.endDate
-                ? `Jusqu'au ${formatDate(poll.endDate)}`
-                : 'Durée illimitée'
+                ? `${t('polls.endDate')} ${formatDate(poll.endDate)}`
+                : t('polls.noEndDate')
             }
           </Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: RADIUS.m,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,

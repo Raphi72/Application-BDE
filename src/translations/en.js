@@ -59,6 +59,57 @@ export default {
     passwordMismatch: 'Passwords do not match',
     invalidEmail: 'Invalid email',
     weakPassword: 'Password must be at least 6 characters',
+
+    // Login screen
+    loginSubtitle: 'Log in to your account',
+    fillAllFields: 'Please fill in all fields',
+    emailConfirmRequired: 'Please confirm your email before logging in',
+    genericErrorRetry: 'An error occurred. Please try again.',
+
+    // Forgot password
+    forgotPasswordTitle: 'Forgot password',
+    forgotPasswordDescription: "Enter your email address and we'll send you a link to reset your password.",
+    yourEmailAddress: 'Your email address',
+    rateLimitWarning: 'For security reasons, you can only request one link per hour.',
+    sendLink: 'Send link',
+    tooManyRequests: 'Too many requests',
+    tooManyRequestsMessage: 'You have made too many requests. Please wait a few minutes before trying again.',
+    enterValidEmail: 'Please enter a valid email address',
+    enterYourEmail: 'Please enter your email address',
+    emailSentTitle: 'Email sent!',
+    emailSentTo: 'A password reset email has been sent to',
+    checkInboxSpam: 'Check your inbox and spam folder.',
+    linkExpiresIn1h: 'The link expires in 1 hour.',
+    resendWait60s: "Didn't receive it? Wait 60 seconds before requesting again.",
+    backToLogin: 'Back to login',
+
+    // Register screen
+    registerTitle: 'Create an account',
+    registerSubtitle: 'Join the BDE community',
+    fullName: 'Full name',
+    emailDomainPlaceholder: 'Email (@aivancity.education / .ai)',
+    emailDomainRestriction: 'Only @aivancity.education and @aivancity.ai addresses are allowed',
+    emailDomainRestrictionRegister: 'Only @aivancity.education and @aivancity.ai addresses can register.',
+    tooManyAttempts: 'Too many attempts. Please wait a few minutes before trying again.',
+    emailAlreadyUsed: 'This email is already in use. Log in or use another email.',
+    invalidEmailAddress: 'Invalid email address.',
+    signupSuccessTitle: 'Registration successful',
+    signupSuccessMessage: 'Your account has been created and you are logged in. Welcome!',
+    checkEmailTitle: 'Check your email!',
+    confirmationEmailSentTo: 'A confirmation email has been sent to',
+    clickLinkToActivate: 'Click the link in the email to activate your account',
+    linkExpiresIn24h: 'The link expires in 24 hours',
+    checkSpamFolder: "Remember to check your spam folder if you can't find the email",
+    goToLogin: 'Go to login',
+
+    // Reset password
+    newPasswordTitle: 'New password',
+    newPasswordSubtitle: 'Create a new password for your account',
+    newPasswordPlaceholder: 'New password',
+    updatePasswordButton: 'Update password',
+    passwordUpdateSuccess: 'Your password has been successfully updated!',
+    passwordMustDiffer: 'The new password must be different from the old one.',
+    sessionExpired: 'Session expired. Please request a new password reset.',
   },
 
   // Profile
@@ -117,6 +168,9 @@ export default {
     registerError: 'Error during registration',
     alreadyRegistered: 'You are already registered',
     eventFull: 'This event is full',
+    eventDetailsTitle: 'Details',
+    eventsOnDate: 'Events on {{date}}',
+    selectDate: 'Select a date',
   },
 
   // Polls
@@ -136,6 +190,7 @@ export default {
     pollEnded: 'This poll has ended',
     results: 'Results',
     totalVotes: 'Total votes',
+    pollDetailsTitle: 'Poll details',
   },
 
   // News
@@ -152,6 +207,7 @@ export default {
       partnership: 'Partnership',
       other: 'Other',
     },
+    articleDetailsTitle: 'Article',
   },
 
   // Clubs
@@ -184,11 +240,20 @@ export default {
     proposalExists: 'You already have a pending proposal',
     clubCreated: 'Your club has been created',
     minMembers: 'Minimum 10 members required',
+    pageTitle: 'Clubs & Societies',
+    clubDetailsTitle: 'Club details',
+  },
+
+  // Gallery
+  gallery: {
+    title: 'Gallery',
+    noAlbums: 'No albums available',
   },
 
   // Admin
   admin: {
     title: 'Administration',
+    welcome: 'Welcome, {{email}}',
     events: 'Manage events',
     polls: 'Manage polls',
     news: 'Manage news',
@@ -228,6 +293,9 @@ export default {
     images: 'Images',
     addImage: 'Add image',
     imageHint: 'Add one or more images (slider)',
+    discardChangesTitle: 'Unsaved changes',
+    discardChangesConfirm: 'Do you want to discard your changes?',
+    discardChanges: 'Discard',
   },
 
   // Notifications

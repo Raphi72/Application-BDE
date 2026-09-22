@@ -18,13 +18,16 @@ import { supabase } from '../../config/supabase';
 import ClubCard from '../../components/ClubCard';
 import { showImagePicker, uploadImage } from '../../services/imageUpload';
 import { COLORS, SHADOWS } from '../../constants/theme';
+import { useLanguage } from '../../context/LanguageContext';
 
 /**
  * Écran admin pour gérer les clubs
  */
 export default function AdminClubsScreen() {
+  const { t } = useLanguage();
   const [clubs, setClubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingClub, setEditingClub] = useState(null);
 
@@ -44,7 +47,7 @@ export default function AdminClubsScreen() {
     loadClubs();
   }, []);
 
-  const loadClubs = async () => {
+  const loadClubs = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('clubs')
@@ -54,10 +57,43 @@ export default function AdminClubsScreen() {
       if (error) throw error;
       setClubs(data || []);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les clubs');
+      Alert.alert(t('common.error'), 'Impossible de charger les clubs');
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadClubs(true);
+  };
+
+  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
+  const hasUnsavedChanges = () => {
+    return Boolean(name || description || contact || president || images.length > 0 || membersCount !== '0');
+  };
+
+  const requestCloseModal = async () => {
+    if (hasUnsavedChanges()) {
+      const confirmClose = Platform.OS === 'web'
+        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
+        : await new Promise((resolve) => {
+            Alert.alert(
+              t('admin.discardChangesTitle'),
+              t('admin.discardChangesConfirm'),
+              [
+                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
+              ]
+            );
+          });
+      if (!confirmClose) return;
+    }
+    setModalVisible(false);
   };
 
   const openModal = (club = null) => {
@@ -100,23 +136,23 @@ export default function AdminClubsScreen() {
           try {
             const uploadedUrl = await uploadImage(selectedImage.uri, 'clubs');
             setImages(prev => [...prev, uploadedUrl]);
-            Alert.alert('Succès', 'Image ajoutée !');
+            Alert.alert(t('common.success'), 'Image ajoutée !');
           } catch (error) {
             console.error('Erreur upload:', error);
-            Alert.alert('Erreur', "Impossible d'uploader l'image.");
+            Alert.alert(t('common.error'), "Impossible d'uploader l'image.");
           } finally {
             setUploading(false);
           }
         }
       });
     } catch (error) {
-      Alert.alert('Erreur', error.message || 'Impossible de sélectionner une image');
+      Alert.alert(t('common.error'), error.message || 'Impossible de sélectionner une image');
     }
   };
 
   const handleSave = async () => {
     if (!name || !description) {
-      Alert.alert('Erreur', 'Veuillez remplir le nom et la description');
+      Alert.alert(t('common.error'), 'Veuillez remplir le nom et la description');
       return;
     }
 
@@ -139,33 +175,33 @@ export default function AdminClubsScreen() {
           .eq('id', editingClub.id);
 
         if (error) throw error;
-        Alert.alert('Succès', 'Club mis à jour');
+        Alert.alert(t('common.success'), t('admin.saveSuccess'));
       } else {
         const { error } = await supabase
           .from('clubs')
           .insert([clubData]);
 
         if (error) throw error;
-        Alert.alert('Succès', 'Club créé');
+        Alert.alert(t('common.success'), t('admin.clubCreatedSuccess'));
       }
 
       setModalVisible(false);
       loadClubs();
     } catch (error) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
   const handleDelete = async (club) => {
     const confirmDelete = Platform.OS === 'web'
-      ? window.confirm(`Confirmer la suppression\n\nÊtes-vous sûr de vouloir supprimer le club "${club.name}" ?\n\nL'utilisateur qui a créé ce club pourra soumettre une nouvelle proposition.`)
+      ? window.confirm(`${t('admin.deleteConfirm')}\n\nÊtes-vous sûr de vouloir supprimer le club "${club.name}" ?\n\nL'utilisateur qui a créé ce club pourra soumettre une nouvelle proposition.`)
       : await new Promise((resolve) => {
           Alert.alert(
-            'Confirmer la suppression',
+            t('admin.deleteConfirm'),
             `Êtes-vous sûr de vouloir supprimer le club "${club.name}" ?\n\nL'utilisateur qui a créé ce club pourra soumettre une nouvelle proposition.`,
             [
-              { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Supprimer', style: 'destructive', onPress: () => resolve(true) },
+              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+              { text: t('common.delete'), style: 'destructive', onPress: () => resolve(true) },
             ]
           );
         });
@@ -195,16 +231,16 @@ export default function AdminClubsScreen() {
       if (Platform.OS === 'web') {
         window.alert('Club supprimé avec succès');
       } else {
-        Alert.alert('Succès', 'Club supprimé avec succès');
+        Alert.alert(t('common.success'), 'Club supprimé avec succès');
       }
-      
+
       loadClubs();
     } catch (error) {
       console.error('Erreur:', error);
       if (Platform.OS === 'web') {
         window.alert('Erreur: Impossible de supprimer le club');
       } else {
-        Alert.alert('Erreur', 'Impossible de supprimer le club');
+        Alert.alert(t('common.error'), t('admin.deleteError'));
       }
     }
   };
@@ -214,7 +250,7 @@ export default function AdminClubsScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
           <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Nouveau club</Text>
+          <Text style={styles.addButtonText}>{t('admin.newClub')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -235,41 +271,41 @@ export default function AdminClubsScreen() {
                 onPress={() => openModal(item)}
               >
                 <Ionicons name="create-outline" size={20} color={COLORS.primary} />
-                <Text style={styles.editButtonText}>Modifier</Text>
+                <Text style={styles.editButtonText}>{t('common.edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDelete(item)}
               >
                 <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                <Text style={styles.deleteButtonText}>Supprimer</Text>
+                <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={loadClubs}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
 
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={requestCloseModal}
       >
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {editingClub ? 'Modifier le club' : 'Nouveau club'}
+              {editingClub ? t('admin.editClub') : t('admin.newClub')}
             </Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={requestCloseModal}>
               <Ionicons name="close" size={28} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Nom *</Text>
+            <Text style={styles.label}>{t('auth.name')} *</Text>
             <TextInput
               style={styles.input}
               value={name}
@@ -278,7 +314,7 @@ export default function AdminClubsScreen() {
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Description *</Text>
+            <Text style={styles.label}>{t('form.description')} *</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={description}
@@ -289,7 +325,7 @@ export default function AdminClubsScreen() {
               numberOfLines={4}
             />
 
-            <Text style={styles.label}>Président</Text>
+            <Text style={styles.label}>{t('clubs.president')}</Text>
             <TextInput
               style={styles.input}
               value={president}
@@ -298,7 +334,7 @@ export default function AdminClubsScreen() {
               placeholderTextColor={COLORS.textSecondary}
             />
 
-            <Text style={styles.label}>Contact (email)</Text>
+            <Text style={styles.label}>{t('clubs.contact')} (email)</Text>
             <TextInput
               style={styles.input}
               value={contact}
@@ -309,7 +345,7 @@ export default function AdminClubsScreen() {
               autoCapitalize="none"
             />
 
-            <Text style={styles.label}>Catégorie</Text>
+            <Text style={styles.label}>{t('form.category')}</Text>
             <View style={styles.categoryContainer}>
               {categories.map((cat) => (
                 <TouchableOpacity
@@ -345,7 +381,7 @@ export default function AdminClubsScreen() {
               keyboardType="numeric"
             />
 
-            <Text style={styles.label}>Images</Text>
+            <Text style={styles.label}>{t('admin.images')}</Text>
             <View style={styles.imageSection}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
                 {images.map((img, index) => (
@@ -374,13 +410,13 @@ export default function AdminClubsScreen() {
               </ScrollView>
 
               <Text style={styles.imageHint}>
-                Ajoutez une ou plusieurs images (slider)
+                {t('admin.imageHint')}
               </Text>
             </View>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>
-                {editingClub ? 'Mettre à jour' : 'Créer'}
+                {editingClub ? t('common.update') : t('common.create')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -22,8 +23,10 @@ const { width } = Dimensions.get('window');
  * Écran de la galerie photos
  */
 export default function GalleryScreen() {
+  const { t } = useLanguage();
   const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -41,9 +44,9 @@ export default function GalleryScreen() {
     }
   };
 
-  const loadAlbums = async () => {
+  const loadAlbums = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isRefresh) setLoading(true);
       const { data: albumsData, error: albumsError } = await supabase
         .from('gallery_albums')
         .select('*')
@@ -75,8 +78,17 @@ export default function GalleryScreen() {
     } catch (error) {
       console.error('Erreur lors du chargement de la galerie:', error);
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadAlbums(true);
   };
 
   const renderAlbum = ({ item }) => (
@@ -126,12 +138,12 @@ export default function GalleryScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshing={loading}
-        onRefresh={loadAlbums}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="images-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>Aucun album disponible</Text>
+            <Text style={styles.emptyText}>{t('gallery.noAlbums')}</Text>
           </View>
         }
       />

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../utils/dateUtils';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+import PressableScale from './PressableScale';
 
 /**
  * Composant Card pour afficher une actualité
@@ -21,7 +22,7 @@ const NewsCard = ({ news, onPress }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <PressableScale style={styles.card} onPress={onPress}>
       <Image source={getImageSource(news.image)} style={styles.image} />
       <View style={styles.content}>
         <View style={styles.categoryBadge}>
@@ -42,14 +43,14 @@ const NewsCard = ({ news, onPress }) => {
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.m,
     marginBottom: 16,
     overflow: 'hidden',
     borderWidth: 1,

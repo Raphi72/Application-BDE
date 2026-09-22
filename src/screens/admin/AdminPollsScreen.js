@@ -9,18 +9,22 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
 import { COLORS, SHADOWS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
+import { useLanguage } from '../../context/LanguageContext';
 
 /**
  * Écran admin pour gérer les sondages
  */
 export default function AdminPollsScreen() {
+  const { t } = useLanguage();
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPoll, setEditingPoll] = useState(null);
 
@@ -33,7 +37,7 @@ export default function AdminPollsScreen() {
     loadPolls();
   }, []);
 
-  const loadPolls = async () => {
+  const loadPolls = async (isRefresh = false) => {
     try {
       const { data, error } = await supabase
         .from('polls')
@@ -43,10 +47,43 @@ export default function AdminPollsScreen() {
       if (error) throw error;
       setPolls(data || []);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les sondages');
+      Alert.alert(t('common.error'), 'Impossible de charger les sondages');
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPolls(true);
+  };
+
+  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
+  const hasUnsavedChanges = () => {
+    return Boolean(question || options.some(opt => opt.trim()) || endDate);
+  };
+
+  const requestCloseModal = async () => {
+    if (hasUnsavedChanges()) {
+      const confirmClose = Platform.OS === 'web'
+        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
+        : await new Promise((resolve) => {
+            Alert.alert(
+              t('admin.discardChangesTitle'),
+              t('admin.discardChangesConfirm'),
+              [
+                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
+              ]
+            );
+          });
+      if (!confirmClose) return;
+    }
+    setModalVisible(false);
   };
 
   const openModal = (poll = null) => {
@@ -66,7 +103,7 @@ export default function AdminPollsScreen() {
 
   const handleSave = async () => {
     if (!question || options.filter(opt => opt.trim()).length < 2) {
-      Alert.alert('Erreur', 'Veuillez remplir la question et au moins 2 options');
+      Alert.alert(t('common.error'), 'Veuillez remplir la question et au moins 2 options');
       return;
     }
 
@@ -84,24 +121,24 @@ export default function AdminPollsScreen() {
           .eq('id', editingPoll.id);
 
         if (error) throw error;
-        Alert.alert('Succès', 'Sondage mis à jour');
+        Alert.alert(t('common.success'), t('admin.saveSuccess'));
       } else {
         const { error } = await supabase
           .from('polls')
           .insert([pollData]);
 
         if (error) throw error;
-        
+
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewPoll(question);
-        
-        Alert.alert('Succès', 'Sondage créé et notification envoyée');
+
+        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
       setModalVisible(false);
       loadPolls();
     } catch (error) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
@@ -109,12 +146,12 @@ export default function AdminPollsScreen() {
 
   const handleDelete = async (pollId) => {
     Alert.alert(
-      'Confirmer la suppression',
-      'Êtes-vous sûr de vouloir supprimer ce sondage ?',
+      t('admin.deleteConfirm'),
+      t('admin.deletePollConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -126,7 +163,7 @@ export default function AdminPollsScreen() {
               if (error) throw error;
               loadPolls();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer le sondage');
+              Alert.alert(t('common.error'), t('admin.deleteError'));
             }
           },
         },
@@ -145,7 +182,7 @@ export default function AdminPollsScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
           <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Nouveau sondage</Text>
+          <Text style={styles.addButtonText}>{t('admin.newPoll')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -156,7 +193,7 @@ export default function AdminPollsScreen() {
             <Text style={styles.pollQuestion}>{item.question}</Text>
             <Text style={styles.pollOptions}>
               {item.options?.length || 0} options •
-              {item.end_date ? ` Fin : ${item.end_date}` : ' Illimité'}
+              {item.end_date ? ` ${t('polls.endDate')} : ${item.end_date}` : ` ${t('polls.noEndDate')}`}
             </Text>
 
             <View style={styles.actions}>
@@ -165,41 +202,41 @@ export default function AdminPollsScreen() {
                 onPress={() => openModal(item)}
               >
                 <Ionicons name="create-outline" size={20} color={COLORS.primary} />
-                <Text style={styles.editButtonText}>Modifier</Text>
+                <Text style={styles.editButtonText}>{t('common.edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDelete(item.id)}
               >
                 <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                <Text style={styles.deleteButtonText}>Supprimer</Text>
+                <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={loadPolls}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
 
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={requestCloseModal}
       >
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {editingPoll ? 'Modifier le sondage' : 'Nouveau sondage'}
+              {editingPoll ? t('admin.editPoll') : t('admin.newPoll')}
             </Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={requestCloseModal}>
               <Ionicons name="close" size={28} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Question *</Text>
+            <Text style={styles.label}>{t('form.question')} *</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={question}
@@ -209,24 +246,24 @@ export default function AdminPollsScreen() {
               multiline
             />
 
-            <Text style={styles.label}>Options * (minimum 2)</Text>
+            <Text style={styles.label}>{t('form.options')} * ({t('form.minOptions')})</Text>
             {options.map((option, index) => (
               <TextInput
                 key={index}
                 style={styles.input}
                 value={option}
                 onChangeText={(value) => updateOption(index, value)}
-                placeholder={`Option ${index + 1}`}
+                placeholder={`${t('form.option')} ${index + 1}`}
                 placeholderTextColor={COLORS.textSecondary}
               />
             ))}
 
-            <Text style={styles.label}>Date de fin (optionnel)</Text>
+            <Text style={styles.label}>{t('form.endDate')} ({t('form.optional')})</Text>
             <TextInput
               style={styles.input}
               value={endDate}
               onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD (laissez vide pour un sondage sans fin)"
+              placeholder={`${t('form.dateFormat')} (${t('form.endDateHint')})`}
               placeholderTextColor={COLORS.textSecondary}
             />
             <Text style={styles.hint}>
@@ -235,7 +272,7 @@ export default function AdminPollsScreen() {
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
               <Text style={styles.saveButtonText}>
-                {editingPoll ? 'Mettre à jour' : 'Créer'}
+                {editingPoll ? t('common.update') : t('common.create')}
               </Text>
             </TouchableOpacity>
           </View>

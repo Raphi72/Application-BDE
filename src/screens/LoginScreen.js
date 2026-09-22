@@ -12,9 +12,14 @@ import {
   Modal,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../config/supabase';
 import { AUTH_EMAIL_REDIRECT_URL } from '../config/authEmail';
+import { COLORS } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import PressableScale from '../components/PressableScale';
+import FadeIn from '../components/FadeIn';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -47,17 +52,23 @@ export default function LoginScreen({ navigation }) {
   const [errorMessage, setErrorMessage] = useState('');
   const { signIn } = useAuth();
 
+  // État de focus des champs (pour un contour visible uniquement sur le champ actif)
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [resetEmailFocused, setResetEmailFocused] = useState(false);
+
   // États pour le mot de passe oublié
   const [forgotPasswordModal, setForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const { t } = useLanguage();
 
   const handleLogin = async () => {
     setErrorMessage(''); // Reset error message
-    
+
     if (!email || !password) {
-      setErrorMessage('Veuillez remplir tous les champs');
+      setErrorMessage(t('auth.fillAllFields'));
       return;
     }
 
@@ -70,9 +81,9 @@ export default function LoginScreen({ navigation }) {
       // Message d'erreur plus clair pour l'utilisateur
       let message = error.message;
       if (error.message.includes('Invalid login credentials')) {
-        message = 'Email ou mot de passe incorrect';
+        message = t('auth.loginError');
       } else if (error.message.includes('Email not confirmed')) {
-        message = 'Veuillez confirmer votre email avant de vous connecter';
+        message = t('auth.emailConfirmRequired');
       }
       setErrorMessage(message);
     }
@@ -96,14 +107,14 @@ export default function LoginScreen({ navigation }) {
   // Envoyer l'email de réinitialisation
   const handleResetPassword = async () => {
     if (!resetEmail) {
-      showAlert('Erreur', 'Veuillez entrer votre adresse email');
+      showAlert(t('common.error'), t('auth.enterYourEmail'));
       return;
     }
 
     // Vérifier le format email basique
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(resetEmail)) {
-      showAlert('Erreur', 'Veuillez entrer une adresse email valide');
+      showAlert(t('common.error'), t('auth.enterValidEmail'));
       return;
     }
 
@@ -116,22 +127,19 @@ export default function LoginScreen({ navigation }) {
 
       if (error) {
         console.log('Erreur reset password:', error);
-        
+
         // Gérer l'erreur de trop de requêtes
         if (error.status === 429 || error.message?.includes('rate limit')) {
-          showAlert(
-            'Trop de demandes',
-            'Vous avez fait trop de demandes. Veuillez attendre quelques minutes avant de réessayer.'
-          );
+          showAlert(t('auth.tooManyRequests'), t('auth.tooManyRequestsMessage'));
         } else {
-          showAlert('Erreur', error.message);
+          showAlert(t('common.error'), error.message);
         }
       } else {
         setResetSent(true);
       }
     } catch (error) {
       console.log('Exception reset password:', error);
-      showAlert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
+      showAlert(t('common.error'), t('auth.genericErrorRetry'));
     } finally {
       setResetLoading(false);
     }
@@ -143,46 +151,53 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
+        <LanguageSwitcher style={styles.languageSwitcher} />
+
         <View style={styles.header}>
-          <Ionicons name="school-outline" size={64} color="#7C5CFF" />
+          <Ionicons name="school-outline" size={64} color={COLORS.primary} />
           <Text style={styles.title}>BDE App</Text>
-          <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+          <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
         </View>
 
         <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={20} color="#ccc" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
+            <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#888"
+              placeholder={t('auth.email')}
+              placeholderTextColor={COLORS.textSecondary}
               value={email}
               onChangeText={(text) => { setEmail(text); setErrorMessage(''); }}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color="#ccc" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Mot de passe"
-              placeholderTextColor="#888"
+              placeholder={t('auth.password')}
+              placeholderTextColor={COLORS.textSecondary}
               value={password}
               onChangeText={(text) => { setPassword(text); setErrorMessage(''); }}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Ionicons
                 name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                 size={20}
-                color="#ccc"
+                color={COLORS.textSecondary}
               />
             </TouchableOpacity>
           </View>
@@ -191,34 +206,34 @@ export default function LoginScreen({ navigation }) {
             style={styles.forgotPasswordButton}
             onPress={openForgotPassword}
           >
-            <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
+            <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
           </TouchableOpacity>
 
           {errorMessage ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle" size={18} color="#ff6b6b" />
+            <FadeIn style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={18} color={COLORS.error} />
               <Text style={styles.errorText}>{errorMessage}</Text>
-            </View>
+            </FadeIn>
           ) : null}
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.text} />
             ) : (
-              <Text style={styles.buttonText}>Se connecter</Text>
+              <Text style={styles.buttonText}>{t('auth.loginButton')}</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.linkText}>
-              Pas encore de compte ? <Text style={styles.linkTextBold}>S'inscrire</Text>
+              {t('auth.noAccount')} <Text style={styles.linkTextBold}>{t('auth.signupButton')}</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -233,9 +248,9 @@ export default function LoginScreen({ navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Mot de passe oublié</Text>
-            <TouchableOpacity onPress={closeForgotPassword}>
-              <Ionicons name="close" size={24} color="#fff" />
+            <Text style={styles.modalTitle}>{t('auth.forgotPasswordTitle')}</Text>
+            <TouchableOpacity onPress={closeForgotPassword} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={24} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
@@ -243,21 +258,23 @@ export default function LoginScreen({ navigation }) {
             {!resetSent ? (
               <>
                 <View style={styles.modalIconContainer}>
-                  <Ionicons name="key-outline" size={60} color="#7C5CFF" />
+                  <Ionicons name="key-outline" size={60} color={COLORS.primary} />
                 </View>
 
                 <Text style={styles.modalDescription}>
-                  Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.
+                  {t('auth.forgotPasswordDescription')}
                 </Text>
 
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#ccc" style={styles.inputIcon} />
+                <View style={[styles.inputContainer, resetEmailFocused && styles.inputContainerFocused]}>
+                  <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Votre adresse email"
-                    placeholderTextColor="#888"
+                    placeholder={t('auth.yourEmailAddress')}
+                    placeholderTextColor={COLORS.textSecondary}
                     value={resetEmail}
                     onChangeText={setResetEmail}
+                    onFocus={() => setResetEmailFocused(true)}
+                    onBlur={() => setResetEmailFocused(false)}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoComplete="email"
@@ -265,64 +282,64 @@ export default function LoginScreen({ navigation }) {
                 </View>
 
                 <View style={styles.rateLimitWarning}>
-                  <Ionicons name="information-circle-outline" size={18} color="#FFB800" />
+                  <Ionicons name="information-circle-outline" size={18} color={COLORS.warning} />
                   <Text style={styles.rateLimitText}>
-                    Pour des raisons de sécurité, vous ne pouvez demander pas plus d'un lien par heure.
+                    {t('auth.rateLimitWarning')}
                   </Text>
                 </View>
 
-                <TouchableOpacity
+                <PressableScale
                   style={[styles.button, resetLoading && styles.buttonDisabled]}
                   onPress={handleResetPassword}
                   disabled={resetLoading}
                 >
                   {resetLoading ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={COLORS.text} />
                   ) : (
-                    <Text style={styles.buttonText}>Envoyer le lien</Text>
+                    <Text style={styles.buttonText}>{t('auth.sendLink')}</Text>
                   )}
-                </TouchableOpacity>
+                </PressableScale>
               </>
             ) : (
               <>
                 <View style={styles.modalIconContainer}>
-                  <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+                  <Ionicons name="checkmark-circle" size={80} color={COLORS.success} />
                 </View>
 
-                <Text style={styles.successTitle}>Email envoyé !</Text>
+                <Text style={styles.successTitle}>{t('auth.emailSentTitle')}</Text>
 
                 <Text style={styles.modalDescription}>
-                  Un email de réinitialisation a été envoyé à{'\n'}
+                  {t('auth.emailSentTo')}{'\n'}
                   <Text style={styles.emailHighlight}>{resetEmail}</Text>
                 </Text>
 
                 <View style={styles.successInfoBox}>
-                  <Ionicons name="mail-outline" size={20} color="#4CAF50" />
+                  <Ionicons name="mail-outline" size={20} color={COLORS.success} />
                   <Text style={styles.successInfoText}>
-                    Vérifiez votre boîte de réception et vos spams.
+                    {t('auth.checkInboxSpam')}
                   </Text>
                 </View>
 
                 <View style={styles.successInfoBox}>
-                  <Ionicons name="time-outline" size={20} color="#FFB800" />
+                  <Ionicons name="time-outline" size={20} color={COLORS.warning} />
                   <Text style={styles.successInfoText}>
-                    Le lien expire dans 1 heure.
+                    {t('auth.linkExpiresIn1h')}
                   </Text>
                 </View>
 
                 <View style={styles.successInfoBox}>
-                  <Ionicons name="refresh-outline" size={20} color="#888" />
+                  <Ionicons name="refresh-outline" size={20} color={COLORS.textSecondary} />
                   <Text style={styles.successInfoText}>
-                    Pas reçu ? Attendez 60 secondes avant de redemander.
+                    {t('auth.resendWait60s')}
                   </Text>
                 </View>
 
-                <TouchableOpacity
+                <PressableScale
                   style={styles.button}
                   onPress={closeForgotPassword}
                 >
-                  <Text style={styles.buttonText}>Retour à la connexion</Text>
-                </TouchableOpacity>
+                  <Text style={styles.buttonText}>{t('auth.backToLogin')}</Text>
+                </PressableScale>
               </>
             )}
           </View>
@@ -335,12 +352,17 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E0E13',
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+  },
+  languageSwitcher: {
+    position: 'absolute',
+    top: 8,
+    right: 0,
   },
   header: {
     alignItems: 'center',
@@ -349,12 +371,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: COLORS.text,
     marginTop: 16,
   },
   subtitle: {
     fontSize: 16,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     marginTop: 8,
   },
   form: {
@@ -363,7 +385,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E24',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
@@ -374,7 +396,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     borderWidth: 1,
-    borderColor: '#7C5CFF',
+    borderColor: COLORS.border,
+  },
+  inputContainerFocused: {
+    borderColor: COLORS.primary,
   },
   inputIcon: {
     marginRight: 12,
@@ -382,7 +407,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#fff',
+    color: COLORS.text,
     backgroundColor: 'transparent',
   },
   eyeIcon: {
@@ -391,21 +416,21 @@ const styles = StyleSheet.create({
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    backgroundColor: `${COLORS.error}26`,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: `${COLORS.error}4D`,
   },
   errorText: {
-    color: '#ff6b6b',
+    color: COLORS.error,
     fontSize: 14,
     marginLeft: 8,
     flex: 1,
   },
   button: {
-    backgroundColor: '#7C5CFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
@@ -421,7 +446,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -431,11 +456,11 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: '#ccc',
+    color: COLORS.textSecondary,
   },
   linkTextBold: {
     fontWeight: 'bold',
-    color: '#7C5CFF',
+    color: COLORS.primary,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
@@ -443,13 +468,13 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
   forgotPasswordText: {
-    color: '#7C5CFF',
+    color: COLORS.primary,
     fontSize: 14,
   },
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: '#0E0E13',
+    backgroundColor: COLORS.background,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -457,12 +482,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a35',
+    borderBottomColor: COLORS.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: COLORS.text,
   },
   modalContent: {
     flex: 1,
@@ -475,7 +500,7 @@ const styles = StyleSheet.create({
   },
   modalDescription: {
     fontSize: 16,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 24,
@@ -483,17 +508,17 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: COLORS.success,
     textAlign: 'center',
     marginBottom: 16,
   },
   emailHighlight: {
-    color: '#7C5CFF',
+    color: COLORS.primary,
     fontWeight: 'bold',
   },
   modalHint: {
     fontSize: 14,
-    color: '#888',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
@@ -501,16 +526,16 @@ const styles = StyleSheet.create({
   rateLimitWarning: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(255, 184, 0, 0.1)',
+    backgroundColor: `${COLORS.warning}1A`,
     padding: 12,
     borderRadius: 10,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.3)',
+    borderColor: `${COLORS.warning}4D`,
   },
   rateLimitText: {
     flex: 1,
-    color: '#FFB800',
+    color: COLORS.warning,
     fontSize: 13,
     marginLeft: 10,
     lineHeight: 18,
@@ -518,14 +543,14 @@ const styles = StyleSheet.create({
   successInfoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E24',
+    backgroundColor: COLORS.surface,
     padding: 14,
     borderRadius: 10,
     marginBottom: 12,
   },
   successInfoText: {
     flex: 1,
-    color: '#ccc',
+    color: COLORS.textSecondary,
     fontSize: 14,
     marginLeft: 12,
   },

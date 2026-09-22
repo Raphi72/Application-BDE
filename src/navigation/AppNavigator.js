@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity, Platform, ScrollView } from 'react-native';
 
 // Écrans d'authentification
@@ -37,6 +38,7 @@ const AuthStack = createNativeStackNavigator();
  * Navigation pour les utilisateurs authentifiés
  */
 function MainTabs({ isAdmin }) {
+  const { t } = useLanguage();
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => {
@@ -128,35 +130,35 @@ function MainTabs({ isAdmin }) {
       <Tab.Screen
         name="Events"
         component={EventsScreen}
-        options={{ title: 'Événements', headerShown: false }}
+        options={{ title: t('navigation.events'), headerShown: false }}
       />
       <Tab.Screen
         name="Polls"
         component={PollsScreen}
-        options={{ title: 'Sondages', headerShown: false }}
+        options={{ title: t('navigation.polls'), headerShown: false }}
       />
       <Tab.Screen
         name="News"
         component={NewsScreen}
-        options={{ title: 'Actualités', headerShown: false }}
+        options={{ title: t('navigation.news'), headerShown: false }}
       />
       <Tab.Screen
         name="Clubs"
         component={ClubsScreen}
-        options={{ title: 'Clubs', headerShown: false }}
+        options={{ title: t('navigation.clubs'), headerShown: false }}
       />
       {/* Galerie temporairement désactivée
       <Tab.Screen
         name="Gallery"
         component={GalleryScreen}
-        options={{ title: 'Galerie' }}
+        options={{ title: t('navigation.gallery') }}
       />
       */}
       {isAdmin && (
         <Tab.Screen
           name="Admin"
           component={AdminStack}
-          options={{ title: 'Admin' }}
+          options={{ title: t('navigation.admin') }}
         />
       )}
     </Tab.Navigator>
@@ -167,6 +169,7 @@ function MainTabs({ isAdmin }) {
  * Stack admin
  */
 function AdminStack() {
+  const { t } = useLanguage();
   return (
     <Stack.Navigator
       screenOptions={{
@@ -184,32 +187,32 @@ function AdminStack() {
       <Stack.Screen
         name="AdminHome"
         component={AdminHomeScreen}
-        options={{ title: 'Administration' }}
+        options={{ title: t('admin.title') }}
       />
       <Stack.Screen
         name="AdminEvents"
         component={AdminEventsScreen}
-        options={{ title: 'Gestion des Événements' }}
+        options={{ title: t('admin.events') }}
       />
       <Stack.Screen
         name="AdminPolls"
         component={AdminPollsScreen}
-        options={{ title: 'Gestion des Sondages' }}
+        options={{ title: t('admin.polls') }}
       />
       <Stack.Screen
         name="AdminNews"
         component={AdminNewsScreen}
-        options={{ title: 'Gestion des Actualités' }}
+        options={{ title: t('admin.news') }}
       />
       <Stack.Screen
         name="AdminClubs"
         component={AdminClubsScreen}
-        options={{ title: 'Gestion des Clubs' }}
+        options={{ title: t('admin.clubs') }}
       />
       <Stack.Screen
         name="AdminClubProposals"
         component={AdminClubProposalsScreen}
-        options={{ title: 'Propositions de Clubs' }}
+        options={{ title: t('admin.clubProposals') }}
       />
     </Stack.Navigator>
   );
@@ -223,12 +226,13 @@ function AdminStack() {
  */
 function AdminHomeScreen({ navigation }) {
   const { signOut, user } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Panneau d'Administration</Text>
-        <Text style={styles.subtitle}>Bienvenue, {user?.email}</Text>
+        <Text style={styles.title}>{t('profile.adminPanel')}</Text>
+        <Text style={styles.subtitle}>{t('admin.welcome', { email: user?.email })}</Text>
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.menu}>
@@ -237,7 +241,7 @@ function AdminHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminEvents')}
         >
           <Ionicons name="calendar" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>Gérer les Événements</Text>
+          <Text style={styles.menuText}>{t('admin.events')}</Text>
           <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
@@ -246,7 +250,7 @@ function AdminHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminPolls')}
         >
           <Ionicons name="checkmark-circle" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>Gérer les Sondages</Text>
+          <Text style={styles.menuText}>{t('admin.polls')}</Text>
           <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
@@ -255,7 +259,7 @@ function AdminHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminNews')}
         >
           <Ionicons name="newspaper" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>Gérer les Actualités</Text>
+          <Text style={styles.menuText}>{t('admin.news')}</Text>
           <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
@@ -264,7 +268,7 @@ function AdminHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminClubs')}
         >
           <Ionicons name="people" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>Gérer les Clubs</Text>
+          <Text style={styles.menuText}>{t('admin.clubs')}</Text>
           <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
@@ -273,7 +277,7 @@ function AdminHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminClubProposals')}
         >
           <Ionicons name="document-text" size={32} color={COLORS.secondary} />
-          <Text style={styles.menuText}>Propositions de Clubs</Text>
+          <Text style={styles.menuText}>{t('admin.clubProposals')}</Text>
           <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
         </TouchableOpacity>
       </ScrollView>
@@ -302,21 +306,39 @@ function AuthNavigator() {
  */
 export default function AppNavigator() {
   const { session, loading, isAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
+  const { t } = useLanguage();
   const [adminStatus, setAdminStatus] = React.useState(false);
+  // Reste à false tant que le statut admin n'a pas été résolu pour cette session,
+  // afin de ne jamais afficher les tabs avant de savoir si l'onglet Admin doit y figurer
+  // (évite un redimensionnement visible de la tab bar juste après le chargement).
+  const [adminChecked, setAdminChecked] = React.useState(false);
 
   React.useEffect(() => {
+    let cancelled = false;
+    setAdminChecked(false);
+
     const checkAdmin = async () => {
       if (session) {
         const admin = await isAdmin();
-        setAdminStatus(admin);
+        if (!cancelled) {
+          setAdminStatus(admin);
+          setAdminChecked(true);
+        }
       } else {
-        setAdminStatus(false);
+        if (!cancelled) {
+          setAdminStatus(false);
+          setAdminChecked(true);
+        }
       }
     };
     checkAdmin();
+
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
-  if (loading) {
+  if (loading || (session && !adminChecked)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -361,7 +383,7 @@ export default function AppNavigator() {
                 fontWeight: 'bold',
                 color: COLORS.text,
               },
-              title: 'Profil',
+              title: t('profile.title'),
             }}
           />
         </Stack.Navigator>
