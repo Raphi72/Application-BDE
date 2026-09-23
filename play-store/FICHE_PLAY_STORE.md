@@ -1,4 +1,4 @@
-# Fiche Google Play Store — BDE App (Aivancity)
+# Fiche Google Play Store — NØVYX (BDE Aivancity)
 
 Textes prêts à coller + captures générées le 9 septembre 2026.
 
@@ -21,9 +21,9 @@ WHERE id = '9e20482d-139f-4543-82d5-4491dbf7c5a1';
 
 ## Nom de l'application
 ```
-BDE Aivancity
+NØVYX – BDE Aivancity
 ```
-*(max ~30 caractères recommandé ; alternative : `BDE App`)*
+*(21 caractères, max 30 ; alternative courte : `NØVYX`)*
 
 ## Description courte (max 80 caractères)
 ```
@@ -33,7 +33,7 @@ L'app officielle du BDE Aivancity : événements, sondages, clubs et actus.
 
 ## Description complète
 ```
-BDE App est l'application officielle du Bureau Des Étudiants d'Aivancity.
+NØVYX est l'application officielle du Bureau Des Étudiants d'Aivancity.
 
 Restez connectés à la vie de l'école : consultez les événements, inscrivez-vous en un clic, votez aux sondages, suivez les actualités et découvrez les clubs & associations.
 
@@ -57,7 +57,7 @@ Contact : bdeaivancity@gmail.com
 
 ## Notes de version (1.0.0)
 ```
-Première version de BDE App :
+Première version de NØVYX :
 • Connexion étudiants Aivancity
 • Événements, sondages, actualités et clubs
 • Proposition de création de club
@@ -95,7 +95,7 @@ Dossier : `play-store/screenshots/`
 Optionnel : `04-actualites-play.png` (écran vide pour le moment — à recapturer quand il y aura des actus).
 
 **Conseil Play Store** : minimum 2 captures téléphone ; idéalement 4–8.  
-Les captures actuelles viennent de la version web (Expo). Pour une fiche plus “native”, refaire les mêmes écrans sur un vrai téléphone Android (Expo Go ou build).
+⚠️ Les captures actuelles montrent l'**ancien design** (avant la refonte NØVYX) : elles sont à refaire. Les captures actuelles viennent de la version web (Expo). Pour une fiche plus “native”, refaire les mêmes écrans sur un vrai téléphone Android (Expo Go ou build).
 
 ## Graphismes manquants à préparer
 

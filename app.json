@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "BDE App",
+    "name": "NØVYX",
     "slug": "bde-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "bdeapp",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -20,8 +20,8 @@
       "bundleIdentifier": "com.bde.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "BDE App utilise la caméra pour prendre des photos d'événements.",
-        "NSPhotoLibraryUsageDescription": "BDE App accède à vos photos pour les partager dans l'application."
+        "NSCameraUsageDescription": "NØVYX utilise la caméra pour prendre des photos d'événements.",
+        "NSPhotoLibraryUsageDescription": "NØVYX accède à vos photos pour les partager dans l'application."
       }
     },
     "android": {
