@@ -7,11 +7,6 @@
     "scheme": "bdeapp",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0E0E13"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -46,7 +41,16 @@
           "color": "#ffffff"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0E0E13"
+        }
+      ]
     ],
     "extra": {
       "eas": {

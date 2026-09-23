@@ -564,7 +564,7 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | Traductions | `src/translations/fr.js`, `src/translations/en.js` |
 | Utilitaires | `src/utils/dateUtils.js` (`dateParts`, `formatTime`), `src/utils/plural.js` |
 
-**Dépendances de design** (toutes incluses dans Expo Go, SDK 54) : `expo-font`, `@expo-google-fonts/dela-gothic-one`, `@expo-google-fonts/big-shoulders-display`, `@expo-google-fonts/space-grotesk`, `react-native-svg` (dents de scie, étoiles), `@expo/vector-icons` (Ionicons).
+**Dépendances de design** (toutes incluses dans Expo Go, SDK 57) : `expo-font`, `@expo-google-fonts/dela-gothic-one`, `@expo-google-fonts/big-shoulders-display`, `@expo-google-fonts/space-grotesk`, `react-native-svg` (dents de scie, étoiles), `@expo/vector-icons` (Ionicons).
 
 **Identité système** (`app.json`) : `name` = `NØVYX` ; `slug` (`bde-app`) et identifiant Android / iOS (`com.bde.app`) inchangés, pour ne pas casser EAS ni la fiche Play Store.
 

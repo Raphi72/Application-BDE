@@ -15,7 +15,7 @@ Application mobile cross-platform développée avec React Native et Expo pour le
 
 ## 🛠️ Stack Technique
 
-- **React Native** + **Expo** (SDK 54) — cross-platform iOS / Android
+- **React Native** + **Expo** (SDK 57) — cross-platform iOS / Android
 - **React Navigation** — navigation entre écrans
 - **Supabase** — authentification, base de données PostgreSQL, stockage
 - **EAS Build** — génération des builds Android/iOS

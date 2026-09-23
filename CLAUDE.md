@@ -5,7 +5,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 ## Stack
 
-- React Native + **Expo SDK 54** (RN 0.81.5, React 19.1, New Architecture), JavaScript (pas de TypeScript).
+- React Native + **Expo SDK 57** (RN 0.86.3, React 19.2.3, New Architecture uniquement), JavaScript (pas de TypeScript).
 - Backend Supabase ; clés dans `.env` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, non versionné).
 - Cible principale : Android (Play Store). Le web (`expo start --web`) sert seulement à tester.
 - Dépôt GitHub **public** `Raphi72/Application-BDE`, branche `master`.
@@ -22,9 +22,11 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 ## Expo Go et SDK
 
-Expo Go du Play Store ne supporte que le **dernier SDK** (57 en septembre 2026). Avec le projet en SDK 54, il affiche « Project is incompatible ».
-- Solution immédiate : installer Expo Go pour SDK 54 (APK officiel : https://github.com/expo/expo-go-releases/releases/download/Expo-Go-54.0.8/Expo-Go-54.0.8.apk) et désactiver sa mise à jour automatique dans le Play Store.
-- Solution durable : migrer vers le SDK 57 (chantier dédié, pas encore fait), ou passer à un development build.
+- Le projet est en **SDK 57**. Expo Go du Play Store ne supporte que le **dernier SDK** : à chaque nouveau SDK, il faut migrer (voir la doc « Upgrade Expo SDK »), sinon Expo Go affiche « Project is incompatible ».
+- Procédure de migration suivie pour 54 → 57 : `npx expo install expo@^57.0.9`, `npx expo install --fix`, `npx expo-doctor`, puis lecture des notes de version de chaque SDK intermédiaire. Consigne du skill officiel `expo-upgrade` : depuis le SDK 55 ou avant, **sauter le 56** (régression mémoire Hermes V1), avec `expo@57.0.9` minimum.
+- Expo Go 57 affiche un bouton flottant « Tools » en haut à droite, par-dessus le bouton profil. Il n'existe que dans Expo Go ; on le masque dans le menu dev (option « Tools button »).
+- Le splash est configuré via le plugin `expo-splash-screen` : la clé `splash` à la racine d'`app.json` n'est plus acceptée depuis le SDK 55.
+- `expo-doctor` signale encore que `assets/icon.png` et `assets/adaptive-icon.png` ne sont pas carrées (1376×768) : à corriger avec la nouvelle icône.
 
 ## Architecture
 
@@ -51,7 +53,7 @@ Expo Go du Play Store ne supporte que le **dernier SDK** (57 en septembre 2026).
 
 ## Vérifier sur Android (émulateur)
 
-- AVD `Medium_Phone_API_36.1` (SDK Android dans `%LOCALAPPDATA%\Android\Sdk`). APK Expo Go 54 déjà téléchargé : `%TEMP%\Expo-Go-54.0.8.apk`. Le réinstaller si l'émulateur a été coupé brutalement.
+- AVD `Medium_Phone_API_36.1` (SDK Android dans `%LOCALAPPDATA%\Android\Sdk`). APK Expo Go 57 déjà téléchargé : `%TEMP%\Expo-Go-57.0.9.apk` (URLs des APK par SDK : https://api.expo.dev/v2/versions/latest, champ `androidClientUrl`). Le réinstaller si l'émulateur a été coupé brutalement. Si le démarrage bloque sur « Loading snapshot », relancer à froid avec `-no-snapshot`.
 - L'utilisateur garde souvent son propre Metro sur le port 8081 : ne pas y toucher et lancer un Metro de test à part, avec `npx expo start --go --offline --port 8082`, puis `adb reverse tcp:8082 tcp:8082` et l'intent `exp://127.0.0.1:8082` avec `-p host.exp.exponent`.
 - Aucun identifiant n'est disponible. Pour voir l'app connectée, ajouter temporairement dans `AppNavigator` une fausse `session` : un objet **constant**, sinon on obtient une boucle de rendu. La retirer avant tout commit. Les écrans admin et les états connectés ne sont pas vérifiables de cette façon.
 - Tester les gestes avec `adb shell input swipe` ; un swipe en biais simule un vrai pouce.
@@ -62,10 +64,13 @@ Expo Go du Play Store ne supporte que le **dernier SDK** (57 en septembre 2026).
 - `e2772c0` : `expo-notifications` en import différé hors Expo Go.
 - `0ddf3db` : refonte complète du design (NØVYX, style « pop varsity »).
 - `58d68ed` : `branding.md` + renommage de l'app en NØVYX (`app.json`, pages légales, fiche Play Store).
+- `9ea3fac` : ce fichier.
+- Migration Expo SDK 54 → 57 (RN 0.86) : dépendances alignées, `react-native-calendars` 1.1314 (supprime le doublon `safe-area-context`), splash via plugin, `@react-navigation/bottom-tabs` retiré (inutilisé). Vérifiée sur émulateur avec Expo Go 57.
 
 ## Points ouverts
 
-- Migration du SDK 54 vers le 57.
+- `@expo/vector-icons` est déprécié depuis le SDK 56 (au profit des paquets `@react-native-vector-icons/*`) : il fonctionne encore, migration à prévoir.
+- React Navigation reste en v6 : fonctionne en SDK 57, mais la v7 est la version maintenue.
 - Icône d'application et splash screen : encore les anciens visuels, à redessiner dans le style NØVYX.
 - Captures de la fiche Play Store à refaire (elles montrent l'ancien design).
 - `play-store/FICHE_PLAY_STORE.md` contient les identifiants du compte testeur (administrateur) dans un dépôt public : mot de passe à changer, identifiants à sortir du dépôt.
