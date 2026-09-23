@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -9,12 +8,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  TextInput,
   Platform,
 } from 'react-native';
+import Text, { TextInput } from '../../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
-import { COLORS, SHADOWS } from '../../constants/theme';
+import { COLORS, SHADOWS, PALETTE } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -230,7 +229,7 @@ export default function AdminClubProposalsScreen() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return COLORS.warning;
-      case 'under_review': return COLORS.primary;
+      case 'under_review': return COLORS.primaryText;
       case 'approved': return COLORS.success;
       case 'rejected': return COLORS.error;
       default: return COLORS.textSecondary;
@@ -320,7 +319,7 @@ export default function AdminClubProposalsScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={COLORS.primaryText} />
         </View>
       ) : (
         <FlatList
@@ -402,7 +401,7 @@ export default function AdminClubProposalsScreen() {
 
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
-                  <Text style={[styles.fieldValue, { color: COLORS.primary }]}>
+                  <Text style={[styles.fieldValue, { color: COLORS.primaryText }]}>
                     {selectedProposal.president_email}
                   </Text>
                 </View>
@@ -447,10 +446,10 @@ export default function AdminClubProposalsScreen() {
                       disabled={processing}
                     >
                       {processing ? (
-                        <ActivityIndicator color="#fff" />
+                        <ActivityIndicator color={COLORS.onPrimary} />
                       ) : (
                         <>
-                          <Ionicons name="eye" size={20} color="#fff" />
+                          <Ionicons name="eye" size={20} color={COLORS.onPrimary} />
                           <Text style={styles.reviewButtonText}>Mettre en examen</Text>
                         </>
                       )}
@@ -463,10 +462,10 @@ export default function AdminClubProposalsScreen() {
                     disabled={processing}
                   >
                     {processing ? (
-                      <ActivityIndicator color="#fff" />
+                      <ActivityIndicator color={COLORS.onPrimary} />
                     ) : (
                       <>
-                        <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.onPrimary} />
                         <Text style={styles.approveButtonText}>Approuver et créer le club</Text>
                       </>
                     )}
@@ -479,10 +478,10 @@ export default function AdminClubProposalsScreen() {
                       disabled={processing}
                     >
                       {processing ? (
-                        <ActivityIndicator color="#fff" />
+                        <ActivityIndicator color={COLORS.onPrimary} />
                       ) : (
                         <>
-                          <Ionicons name="close-circle" size={20} color="#fff" />
+                          <Ionicons name="close-circle" size={20} color={COLORS.onPrimary} />
                           <Text style={styles.rejectButtonText}>{t('admin.reject')}</Text>
                         </>
                       )}
@@ -541,7 +540,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   filterButtonTextActive: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontWeight: '600',
   },
   list: {
@@ -679,7 +678,7 @@ const styles = StyleSheet.create({
   },
   fieldHint: {
     fontSize: 12,
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -706,7 +705,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reviewButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
@@ -715,13 +714,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.success,
+    backgroundColor: PALETTE.lime,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
   },
   approveButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
@@ -730,12 +729,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.error,
+    backgroundColor: PALETTE.cherry,
     padding: 16,
     borderRadius: 12,
   },
   rejectButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,

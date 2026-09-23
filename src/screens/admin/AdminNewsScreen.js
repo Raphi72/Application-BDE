@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  TextInput,
   Modal,
   ScrollView,
   Alert,
@@ -13,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import Text, { TextInput } from '../../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../config/supabase';
 import NewsCard from '../../components/NewsCard';
@@ -218,7 +217,7 @@ export default function AdminNewsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
+          <Ionicons name="add-circle" size={24} color={COLORS.onPrimary} />
           <Text style={styles.addButtonText}>{t('admin.newNews')}</Text>
         </TouchableOpacity>
       </View>
@@ -240,7 +239,7 @@ export default function AdminNewsScreen() {
                 style={styles.editButton}
                 onPress={() => openModal(item)}
               >
-                <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+                <Ionicons name="create-outline" size={20} color={COLORS.primaryText} />
                 <Text style={styles.editButtonText}>{t('common.edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -339,9 +338,9 @@ export default function AdminNewsScreen() {
                   disabled={uploading}
                 >
                   {uploading ? (
-                    <ActivityIndicator color={COLORS.primary} />
+                    <ActivityIndicator color={COLORS.primaryText} />
                   ) : (
-                    <Ionicons name="add" size={32} color={COLORS.primary} />
+                    <Ionicons name="add" size={32} color={COLORS.primaryText} />
                   )}
                 </TouchableOpacity>
               </ScrollView>
@@ -391,7 +390,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.neon,
   },
   addButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontWeight: 'bold',
     marginLeft: 8,
   },
@@ -418,7 +417,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   editButtonText: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     marginLeft: 4,
   },
   deleteButton: {
@@ -494,7 +493,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   categoryButtonTextActive: {
-    color: '#fff',
+    color: COLORS.onPrimary,
   },
   saveButton: {
     backgroundColor: COLORS.primary,
@@ -506,7 +505,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.neon,
   },
   saveButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontSize: 18,
     fontWeight: 'bold',
   },

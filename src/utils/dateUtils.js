@@ -39,6 +39,40 @@ export const isPastDate = (dateString) => {
 };
 
 /**
+ * Morceaux d'une date pour les blocs date façon billet (jour en gros chiffres,
+ * mois et jour de la semaine abrégés, en capitales).
+ * @param {string} dateString - Date au format ISO
+ * @param {string} locale - 'fr' ou 'en'
+ * @returns {{ day: string, month: string, weekday: string, year: string, long: string }}
+ */
+export const dateParts = (dateString, locale = 'fr') => {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return { day: '--', month: '', weekday: '', year: '', long: '' };
+  }
+  const loc = locale === 'en' ? 'en-GB' : 'fr-FR';
+  const clean = (s) => s.replace('.', '').toUpperCase();
+  return {
+    day: String(date.getDate()),
+    month: clean(date.toLocaleDateString(loc, { month: 'short' })),
+    weekday: clean(date.toLocaleDateString(loc, { weekday: 'short' })),
+    year: String(date.getFullYear()),
+    long: date.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+  };
+};
+
+/**
+ * Heure courte : "18:00:00" -> "18h00" (fr) ou "18:00" (en).
+ * @param {string} timeString - Heure au format HH:MM[:SS]
+ * @param {string} locale - 'fr' ou 'en'
+ */
+export const formatTime = (timeString, locale = 'fr') => {
+  if (!timeString) return '';
+  const [h, m = '00'] = String(timeString).split(':');
+  return locale === 'en' ? `${h}:${m}` : `${h}h${m}`;
+};
+
+/**
  * Calcule le nombre de jours jusqu'à une date
  * @param {string} dateString - Date au format ISO
  * @returns {number} Nombre de jours (négatif si passé)

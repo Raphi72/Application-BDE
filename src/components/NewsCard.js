@@ -1,110 +1,131 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { formatDate } from '../utils/dateUtils';
-import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
-import PressableScale from './PressableScale';
+import Text from './ui/AppText';
+import { PopPressable } from './ui/Pop';
+import { Sticker } from './ui/Deco';
+import { firstImage } from './EventCard';
+import { dateParts } from '../utils/dateUtils';
+import { FONTS, PALETTE, SECTION_COLORS } from '../constants/theme';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
- * Composant Card pour afficher une actualité
+ * Carte actualité façon fanzine : photo si elle existe (jamais de bloc vide),
+ * pastille catégorie, date varsity, gros titre et chapeau. La plus récente
+ * (featured) passe « à la une » sur fond jaune.
  * @param {Object} news - Objet actualité
  * @param {Function} onPress - Fonction appelée au clic
+ * @param {boolean} featured - Actualité mise en avant
  */
-const NewsCard = ({ news, onPress }) => {
-  // Helper pour gérer les images multiples (JSON) ou simple URL
-  const getImageSource = (img) => {
-    if (!img) return null;
-    try {
-      const parsed = JSON.parse(img);
-      if (Array.isArray(parsed) && parsed.length > 0) return { uri: parsed[0] };
-    } catch (e) { }
-    return { uri: img };
-  };
+const NewsCard = ({ news, onPress, featured = false }) => {
+  const { t, language } = useLanguage();
+  const image = firstImage(news.image);
+  const parts = dateParts(news.date, language);
 
   return (
-    <PressableScale style={styles.card} onPress={onPress}>
-      <Image source={getImageSource(news.image)} style={styles.image} />
+    <PopPressable
+      onPress={onPress}
+      radius={20}
+      color={featured ? SECTION_COLORS.News : PALETTE.white}
+      containerStyle={styles.container}
+      accessibilityLabel={news.title}
+    >
+      {image ? <Image source={{ uri: image }} style={[styles.image, featured && styles.imageFeatured]} /> : null}
       <View style={styles.content}>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{news.category}</Text>
+        <View style={styles.topRow}>
+          <Sticker
+            label={news.category}
+            color={featured ? PALETTE.white : SECTION_COLORS.News}
+            rotate={-3}
+            small
+          />
+          <Text style={styles.date}>
+            {parts.day} {parts.month} {parts.year}
+          </Text>
         </View>
-        <Text style={styles.title}>{news.title}</Text>
-        <Text style={styles.excerpt} numberOfLines={2}>
+        <Text style={[styles.title, featured && styles.titleFeatured]}>{news.title}</Text>
+        <Text style={styles.excerpt} numberOfLines={featured ? 4 : 3}>
           {news.content}
         </Text>
         <View style={styles.footer}>
-          <View style={styles.footerInfo}>
-            <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.footerText}>{formatDate(news.date)}</Text>
-          </View>
-          <View style={styles.footerInfo}>
-            <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.footerText}>{news.author}</Text>
+          <Text style={styles.by}>{t('news.by')}</Text>
+          <View style={styles.arrow}>
+            <Ionicons name="arrow-forward" size={18} color={PALETTE.ink} />
           </View>
         </View>
       </View>
-    </PressableScale>
+    </PopPressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.m,
-    marginBottom: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  container: {
+    marginBottom: 20,
   },
   image: {
     width: '100%',
-    height: 200,
+    height: 160,
     resizeMode: 'cover',
+    borderBottomWidth: 2.5,
+    borderBottomColor: PALETTE.ink,
+    backgroundColor: PALETTE.paperDeep,
+  },
+  imageFeatured: {
+    height: 200,
   },
   content: {
-    padding: 16,
+    padding: 14,
   },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginBottom: 12,
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  categoryText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '600',
+  date: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 16,
+    letterSpacing: 0.8,
+    color: PALETTE.ink,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 8,
+    fontFamily: FONTS.display,
+    fontSize: 19,
+    lineHeight: 26,
+    color: PALETTE.ink,
+    marginBottom: 6,
+  },
+  titleFeatured: {
+    fontSize: 24,
+    lineHeight: 32,
   },
   excerpt: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    marginBottom: 16,
+    fontSize: 15,
+    lineHeight: 22,
+    color: PALETTE.ink,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceLight,
-  },
-  footerInfo: {
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
   },
-  footerText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginLeft: 6,
+  by: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+  },
+  arrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

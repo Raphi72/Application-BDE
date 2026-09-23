@@ -1,28 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
-import { useOpenProfile } from '../navigation/ProfileNav';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   ScrollView,
-  TouchableOpacity,
   Linking,
   ActivityIndicator,
-  Dimensions,
+  Image,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
+import Text from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import ClubCard from '../components/ClubCard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ClubCard, { ClubPatch } from '../components/ClubCard';
 import { supabase } from '../config/supabase';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS, STROKE } from '../constants/theme';
 import ClubProposalScreen from './ClubProposalScreen';
 import { useLanguage } from '../context/LanguageContext';
-import PressableScale from '../components/PressableScale';
+import { plural } from '../utils/plural';
+import { PopButton, PopCard, PopPressable, RoundButton } from '../components/ui/Pop';
+import { EmptyState, Sticker, Zigzag } from '../components/ui/Deco';
+import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
+const COLOR = SECTION_COLORS.Clubs;
 
 /**
  * Contenu de la charte pour affichage rapide
@@ -32,7 +35,7 @@ const CHARTE_CONTENT = {
   subtitle: "Mandat 2026 — BDE&S-Aivancity",
   sections: [
     {
-      title: "1. Les 3 critères de base",
+      title: "Les 3 critères de base",
       content: `Pour être éligible, un club doit présenter un dossier solide comprenant :
 
 • L'Objet du Club : Il doit obligatoirement contribuer à l'animation et à la promotion de la vie étudiante ou sportive.
@@ -42,7 +45,7 @@ const CHARTE_CONTENT = {
 • La Composition du Bureau : Il est fortement recommandé que le club reflète la diversité de l'école.`
     },
     {
-      title: "2. Le parcours de création",
+      title: "Le parcours de création",
       content: `Étape 1 : Prépare ton dossier (nom, objectif, capacité, idées d'événements)
 
 Étape 2 : Soumets ta proposition via l'application
@@ -52,14 +55,14 @@ const CHARTE_CONTENT = {
 Étape 4 : Lance ton club !`
     },
     {
-      title: "3. Contacts clés",
+      title: "Contacts clés",
       content: `• Paperasse : Jason MAROLANY (Secrétaire Général)
 • Coaching : Yanis ZOUAOUI (Vice-Président)
 • Budget : Raphaël SALÉ (Trésorier)
 • Communication : Coralie MBODOUAN (Community Manager)`
     },
     {
-      title: "4. Obligations du président",
+      title: "Obligations du président",
       content: `📋 Rapport mensuel obligatoire :
 Le président du club doit envoyer chaque mois un rapport au Président du BDE contenant :
 • Le nombre de membres actifs
@@ -70,7 +73,7 @@ Le président du club doit envoyer chaque mois un rapport au Président du BDE c
 À chaque nouveau membre, le président doit envoyer au BDE le nom de la personne qui rejoint le club.`
     },
     {
-      title: "5. Règles importantes",
+      title: "Règles importantes",
       content: `⚠️ Tous les clubs sont sous la responsabilité du BDE.
 
 • Si un club n'a pas atteint les 3/4 de sa capacité maximale au bout d'un mois, il pourra être suspendu.
@@ -82,10 +85,15 @@ Le président du club doit envoyer chaque mois un rapport au Président du BDE c
   ]
 };
 
+const SECTION_ACCENTS = [PALETTE.lime, PALETTE.sun, PALETTE.periwinkle, PALETTE.bubblegum, PALETTE.tangerine];
+
 /**
- * Modal pour afficher la charte
+ * Modal pour afficher la charte : sections en cartes numérotées.
  */
 function CharteViewModal({ visible, onClose }) {
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   return (
     <Modal
       visible={visible}
@@ -93,25 +101,28 @@ function CharteViewModal({ visible, onClose }) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={charteStyles.modalContainer}>
-        <View style={charteStyles.modalHeader}>
-          <Text style={charteStyles.modalTitle}>{CHARTE_CONTENT.title}</Text>
-          <TouchableOpacity onPress={onClose} style={charteStyles.closeButton}>
-            <Ionicons name="close" size={24} color={COLORS.text} />
-          </TouchableOpacity>
+      <View style={styles.container}>
+        <View style={[charteStyles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={charteStyles.title}>{t('clubs.charterTitle').toUpperCase()}</Text>
+            <Text style={charteStyles.subtitle}>{CHARTE_CONTENT.subtitle}</Text>
+          </View>
+          <RoundButton icon="close" onPress={onClose} accessibilityLabel={t('common.close')} />
         </View>
-        
-        <ScrollView style={charteStyles.modalContent} showsVerticalScrollIndicator={false}>
-          <Text style={charteStyles.modalSubtitle}>{CHARTE_CONTENT.subtitle}</Text>
-          
+        <Zigzag color={COLOR} width={width} />
+
+        <ScrollView contentContainerStyle={charteStyles.content} showsVerticalScrollIndicator={false}>
           {CHARTE_CONTENT.sections.map((section, index) => (
-            <View key={index} style={charteStyles.charteSection}>
-              <Text style={charteStyles.charteSectionTitle}>{section.title}</Text>
-              <Text style={charteStyles.charteSectionContent}>{section.content}</Text>
-            </View>
+            <PopCard key={index} containerStyle={{ marginBottom: 16 }} style={{ padding: 14 }}>
+              <View style={charteStyles.sectionHead}>
+                <View style={[charteStyles.number, { backgroundColor: SECTION_ACCENTS[index % SECTION_ACCENTS.length] }]}>
+                  <Text style={charteStyles.numberText}>{String(index + 1).padStart(2, '0')}</Text>
+                </View>
+                <Text style={charteStyles.sectionTitle}>{section.title}</Text>
+              </View>
+              <Text style={charteStyles.sectionContent}>{section.content}</Text>
+            </PopCard>
           ))}
-          
-          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </Modal>
@@ -119,59 +130,74 @@ function CharteViewModal({ visible, onClose }) {
 }
 
 const charteStyles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLOR,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    gap: 12,
   },
-  modalTitle: {
+  title: {
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 36,
+    color: PALETTE.ink,
+  },
+  subtitle: {
+    fontFamily: FONTS.varsityBold,
     fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    flex: 1,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
   },
-  closeButton: {
-    padding: 8,
-  },
-  modalContent: {
-    flex: 1,
+  content: {
     padding: 16,
+    paddingBottom: 40,
   },
-  modalSubtitle: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginBottom: 24,
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 12,
   },
-  charteSection: {
-    marginBottom: 24,
+  number: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-4deg' }],
   },
-  charteSectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 12,
+  numberText: {
+    fontFamily: FONTS.varsity,
+    fontSize: 26,
+    lineHeight: 30,
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
-  charteSectionContent: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 22,
+  sectionTitle: {
+    flex: 1,
+    fontFamily: FONTS.display,
+    fontSize: 17,
+    lineHeight: 23,
+    color: PALETTE.ink,
+  },
+  sectionContent: {
+    fontSize: 15,
+    lineHeight: 23,
+    color: PALETTE.ink,
   },
 });
 
 /**
- * Écran de liste des clubs
+ * Écran de liste des clubs : les clubs d'abord, puis une carte d'appel à
+ * proposer son club (avec accès à la charte).
  */
 function ClubsListScreen({ navigation }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [clubs, setClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,78 +244,61 @@ function ClubsListScreen({ navigation }) {
     loadClubs(true);
   };
 
-  const renderClub = ({ item }) => (
-    <ClubCard
-      club={item}
-      onPress={() => navigation.navigate('ClubDetails', { club: item })}
-    />
-  );
-
-  const renderHeader = () => (
-    <View style={styles.headerSection}>
-      {/* Bouton Voir la Charte */}
-      <PressableScale
-        style={styles.charteButton}
-        onPress={() => setShowCharteModal(true)}
-      >
-        <View style={styles.charteButtonIcon}>
-          <Ionicons name="document-text" size={24} color={COLORS.primary} />
-        </View>
-        <View style={styles.charteButtonContent}>
-          <Text style={styles.charteButtonTitle}>{t('clubs.charter')}</Text>
-          <Text style={styles.charteButtonSubtitle}>
-            Consultez les règles et critères
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-      </PressableScale>
-
-      {/* Bouton Proposer un Club */}
-      <PressableScale
-        style={styles.proposeButton}
-        onPress={() => navigation.navigate('ClubProposal')}
-      >
-        <Ionicons name="add-circle" size={24} color="#fff" />
-        <Text style={styles.proposeButtonText}>{t('clubs.proposeClub')}</Text>
-      </PressableScale>
-
-      {/* Titre de la liste */}
-      <Text style={styles.listTitle}>{t('clubs.pageTitle')}</Text>
-    </View>
-  );
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+  const renderFooter = () => (
+    <PopCard color={PALETTE.sun} radius={22} containerStyle={{ marginTop: 6 }} style={styles.pitch}>
+      <View style={styles.pitchBadge}>
+        <Text style={styles.pitchEmoji}>🚀</Text>
       </View>
-    );
-  }
+      <Text style={styles.pitchTitle}>{t('clubs.yourClubTitle')}</Text>
+      <Text style={styles.pitchText}>{t('clubs.yourClubMessage')}</Text>
+      <PopButton
+        title={t('clubs.proposeClub')}
+        icon="add-circle"
+        variant="primary"
+        onPress={() => navigation.navigate('ClubProposal')}
+        containerStyle={{ alignSelf: 'stretch', marginBottom: 10 }}
+      />
+      <PopButton
+        title={t('clubs.readCharter')}
+        icon="document-text"
+        variant="light"
+        compact
+        onPress={() => setShowCharteModal(true)}
+        containerStyle={{ alignSelf: 'stretch' }}
+      />
+    </PopCard>
+  );
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={clubs}
-        renderItem={renderClub}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>{t('clubs.noClubs')}</Text>
-          </View>
-        }
+      <ScreenHeader
+        title={t('navigation.clubs').toUpperCase()}
+        subtitle={plural(t, language, clubs.length, 'clubs.countOne', 'clubs.countLabel')}
+        color={COLOR}
       />
-      
-      {/* Modal Charte */}
-      <CharteViewModal
-        visible={showCharteModal}
-        onClose={() => setShowCharteModal(false)}
-      />
+      {loading ? (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={PALETTE.ink} />
+        </View>
+      ) : (
+        <FlatList
+          data={clubs}
+          renderItem={({ item }) => (
+            <ClubCard club={item} onPress={() => navigation.navigate('ClubDetails', { club: item })} />
+          )}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={
+            <EmptyState emoji="🏆" title={t('clubs.emptyTitle')} message={t('clubs.emptyMessage')} color={COLOR} />
+          }
+          ListFooterComponent={renderFooter}
+        />
+      )}
+
+      <CharteViewModal visible={showCharteModal} onClose={() => setShowCharteModal(false)} />
     </View>
   );
 }
@@ -300,9 +309,8 @@ function ClubsListScreen({ navigation }) {
 function ClubDetailsScreen({ route }) {
   const { t } = useLanguage();
   const { club } = route.params;
-  const { width } = Dimensions.get('window');
+  const { width } = useWindowDimensions();
 
-  // Parse images
   const images = (() => {
     if (!club.image) return [];
     try {
@@ -326,71 +334,66 @@ Cordialement`);
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {images.length > 0 && (
-        <View style={styles.sliderContainer}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-          >
-            {images.map((img, index) => (
-              <Image
-                key={index}
-                source={{ uri: img }}
-                style={[styles.sliderImage, { width }]}
-              />
-            ))}
-          </ScrollView>
-          {images.length > 1 && (
-            <View style={styles.sliderBadge}>
-              <Ionicons name="images" size={12} color="#fff" />
-              <Text style={styles.sliderText}>{images.length} photos</Text>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ paddingBottom: club.contact ? 110 : 30 }}>
+        {images.length > 0 ? (
+          <View style={styles.hero}>
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+              {images.map((img, index) => (
+                <Image key={index} source={{ uri: img }} style={[styles.heroImage, { width }]} />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={styles.detailsContent}>
+          <View style={styles.identity}>
+            <ClubPatch club={club} size={96} rotate={-8} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>{club.name}</Text>
+              <Sticker label={club.category} color={COLOR} rotate={-3} />
             </View>
-          )}
-        </View>
-      )}
-      <View style={styles.detailsContainer}>
-        <Text style={styles.name}>{club.name}</Text>
-
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{club.category}</Text>
-        </View>
-
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>{club.members} {t('clubs.members')}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={20} color={COLORS.secondary} />
-            <Text style={styles.infoText}>{t('clubs.president')} : {club.president}</Text>
+          <View style={styles.statsRow}>
+            <PopCard containerStyle={{ flex: 1 }} color={PALETTE.periwinkle} style={styles.statCard}>
+              <Text style={styles.statNumber}>{club.members}</Text>
+              <Text style={styles.statLabel}>{t('clubs.members')}</Text>
+            </PopCard>
+            {club.president ? (
+              <PopCard containerStyle={{ flex: 1.4 }} color={PALETTE.bubblegum} style={styles.statCard}>
+                <Ionicons name="star" size={20} color={PALETTE.ink} />
+                <Text style={styles.statValue} numberOfLines={2}>{club.president}</Text>
+                <Text style={styles.statLabel}>{t('clubs.president')}</Text>
+              </PopCard>
+            ) : null}
           </View>
 
-          {club.contact && (
-            <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={20} color={COLORS.primary} />
-              <Text style={styles.infoText}>{club.contact}</Text>
-            </View>
-          )}
-        </View>
+          {club.contact ? (
+            <PopPressable onPress={handleContactPresident} containerStyle={{ marginBottom: 16 }} style={styles.contactRow}>
+              <View style={styles.iconSquare}>
+                <Ionicons name="mail" size={20} color={PALETTE.ink} />
+              </View>
+              <Text style={styles.contactText} numberOfLines={1}>{club.contact}</Text>
+              <Ionicons name="arrow-forward" size={20} color={PALETTE.ink} />
+            </PopPressable>
+          ) : null}
 
-        <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>{t('form.description')}</Text>
-          <Text style={styles.description}>{club.description}</Text>
+          {club.description ? (
+            <>
+              <Text style={styles.sectionTitle}>{t('form.description')}</Text>
+              <Text style={styles.description}>{club.description}</Text>
+            </>
+          ) : null}
         </View>
+      </ScrollView>
 
-        {/* Bouton Contacter le président */}
-        <PressableScale
-          style={styles.contactButton}
-          onPress={handleContactPresident}
-        >
-          <Ionicons name="mail-outline" size={20} color="#fff" />
-          <Text style={styles.contactButtonText}>{t('clubs.contactPresident')}</Text>
-        </PressableScale>
-      </View>
-    </ScrollView>
+      {club.contact ? (
+        <View style={styles.actionBar}>
+          <PopButton title={t('clubs.contactPresident')} icon="mail" onPress={handleContactPresident} />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -398,39 +401,14 @@ Cordialement`);
  * Navigation pour les clubs
  */
 export default function ClubsScreen() {
-  const openProfile = useOpenProfile();
   const { t } = useLanguage();
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.border,
-        },
-        headerTintColor: COLORS.text,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: COLORS.text,
-        },
-        headerShadowVisible: false,
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions(COLOR)}>
       <Stack.Screen
         name="ClubsList"
         component={ClubsListScreen}
-        options={{
-          title: t('clubs.pageTitle'),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={openProfile}
-              style={{ marginRight: 16, padding: 8 }}
-            >
-              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-            </TouchableOpacity>
-          ),
-        }}
+        options={{ title: t('clubs.pageTitle'), headerShown: false }}
       />
       <Stack.Screen
         name="ClubDetails"
@@ -455,177 +433,148 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 16,
-  },
   list: {
     padding: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
-  // Header section styles
-  headerSection: {
+  pitch: {
+    padding: 18,
+    alignItems: 'center',
+  },
+  pitchBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-10deg' }],
+    marginBottom: 10,
+  },
+  pitchEmoji: {
+    fontSize: 30,
+  },
+  pitchTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 22,
+    lineHeight: 30,
+    color: PALETTE.ink,
+    textAlign: 'center',
+  },
+  pitchText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: PALETTE.ink,
+    textAlign: 'center',
+    marginTop: 4,
     marginBottom: 16,
   },
-  charteButton: {
+  hero: {
+    borderBottomWidth: STROKE,
+    borderBottomColor: PALETTE.ink,
+  },
+  heroImage: {
+    height: 230,
+    resizeMode: 'cover',
+    backgroundColor: PALETTE.paperDeep,
+  },
+  detailsContent: {
+    padding: 16,
+    paddingTop: 22,
+  },
+  identity: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
-  },
-  charteButtonIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: `${COLORS.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  charteButtonContent: {
-    flex: 1,
-  },
-  charteButtonTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  charteButtonSubtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  proposeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    ...SHADOWS.neon,
-  },
-  proposeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  detailsContainer: {
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    margin: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+    gap: 16,
+    marginBottom: 22,
   },
   name: {
+    fontFamily: FONTS.display,
     fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    lineHeight: 36,
+    color: PALETTE.ink,
+    marginBottom: 6,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 16,
   },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginBottom: 24,
+  statCard: {
+    padding: 14,
+    minHeight: 104,
+    justifyContent: 'flex-end',
   },
-  categoryText: {
-    color: COLORS.secondary,
-    fontSize: 14,
-    fontWeight: '600',
+  statNumber: {
+    fontFamily: FONTS.varsity,
+    fontSize: 48,
+    lineHeight: 50,
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
-  infoSection: {
-    marginBottom: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
+  statValue: {
+    fontFamily: FONTS.display,
+    fontSize: 16,
+    lineHeight: 21,
+    color: PALETTE.ink,
+    marginTop: 6,
   },
-  infoRow: {
+  statLabel: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+  },
+  contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 12,
+    gap: 12,
   },
-  infoText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginLeft: 12,
+  iconSquare: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.mint,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  descriptionSection: {
-    marginBottom: 32,
+  contactText: {
+    flex: 1,
+    fontFamily: FONTS.bodyBold,
+    fontSize: 15,
+    color: PALETTE.ink,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 12,
+    fontFamily: FONTS.varsity,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+    marginTop: 8,
+    marginBottom: 8,
   },
   description: {
     fontSize: 16,
-    color: COLORS.textSecondary,
-    lineHeight: 24,
+    lineHeight: 25,
+    color: PALETTE.ink,
   },
-  contactButton: {
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 8,
-    ...SHADOWS.neon,
-  },
-  contactButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  sliderContainer: {
-    height: 250,
-    backgroundColor: '#000',
-    marginBottom: -20,
-    zIndex: 1,
-  },
-  sliderImage: {
-    height: 250,
-    resizeMode: 'cover',
-  },
-  sliderBadge: {
+  actionBar: {
     position: 'absolute',
-    bottom: 30,
-    right: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sliderText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    paddingTop: 12,
+    backgroundColor: PALETTE.paper,
+    borderTopWidth: STROKE,
+    borderTopColor: PALETTE.ink,
   },
 });

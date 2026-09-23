@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -10,12 +8,14 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import Text, { TextInput } from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
 import { useLanguage } from '../context/LanguageContext';
 import { COLORS } from '../constants/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import PressableScale from '../components/PressableScale';
+import { PopButton } from '../components/ui/Pop';
+import { AuthBackdrop, AuthBrand, authStyles } from '../components/ui/Auth';
 import FadeIn from '../components/FadeIn';
 
 /**
@@ -108,22 +108,15 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <AuthBackdrop />
       <View style={styles.content}>
-        <LanguageSwitcher style={styles.languageSwitcher} />
+        <LanguageSwitcher floating />
 
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="key" size={64} color={COLORS.primary} />
-          </View>
-          <Text style={styles.title}>{t('auth.newPasswordTitle')}</Text>
-          <Text style={styles.subtitle}>
-            {t('auth.newPasswordSubtitle')}
-          </Text>
-        </View>
+        <AuthBrand title={t('auth.newPasswordTitle')} subtitle={t('auth.newPasswordSubtitle')} />
 
         <View style={styles.form}>
           <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder={t('auth.newPasswordPlaceholder')}
@@ -149,7 +142,7 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
           </View>
 
           <View style={[styles.inputContainer, confirmPasswordFocused && styles.inputContainerFocused]}>
-            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder={t('auth.confirmPassword')}
@@ -185,17 +178,7 @@ export default function ResetPasswordScreen({ onPasswordReset }) {
             </FadeIn>
           ) : null}
 
-          <PressableScale
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleResetPassword}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.text} />
-            ) : (
-              <Text style={styles.buttonText}>{t('auth.updatePasswordButton')}</Text>
-            )}
-          </PressableScale>
+          <PopButton title={t('auth.updatePasswordButton')} onPress={handleResetPassword} loading={loading} containerStyle={{ marginTop: 8 }} />
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -246,29 +229,12 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    height: 56,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.primary,
-  },
+  inputContainer: authStyles.inputContainer,
+  inputContainerFocused: authStyles.inputContainerFocused,
   inputIcon: {
     marginRight: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.text,
-    backgroundColor: 'transparent',
-  },
+  input: authStyles.input,
   eyeIcon: {
     padding: 4,
   },
@@ -278,16 +244,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${COLORS.error}26`,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: `${COLORS.error}4D`,
-  },
+  errorContainer: authStyles.errorContainer,
   errorText: {
     color: COLORS.error,
     fontSize: 14,

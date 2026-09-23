@@ -1,16 +1,21 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import Text from './ui/AppText';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../context/LanguageContext';
+import { FONTS, PALETTE, STROKE } from '../constants/theme';
 
 /**
  * Petit sélecteur de langue (FR/EN) sous forme de pilule à deux boutons.
  * Utilisé sur les écrans accessibles avant connexion (Login, Register, Reset).
+ * `floating` : positionné en haut à droite, sous la barre d'état.
  */
-export default function LanguageSwitcher({ style }) {
+export default function LanguageSwitcher({ style, floating = false }) {
   const { language, setLanguage, availableLanguages } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, floating && { position: 'absolute', top: insets.top + 10, right: 16, zIndex: 2 }, style]}>
       {availableLanguages.map((lang) => (
         <TouchableOpacity
           key={lang.code}
@@ -33,32 +38,34 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignSelf: 'center',
-    backgroundColor: '#1E1E24',
-    borderRadius: 20,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: '#2a2a35',
+    backgroundColor: PALETTE.white,
+    borderRadius: 999,
+    padding: 3,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 999,
   },
   optionActive: {
-    backgroundColor: '#7C5CFF',
+    backgroundColor: PALETTE.ink,
   },
   flag: {
     fontSize: 14,
     marginRight: 6,
   },
   code: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#888',
+    fontFamily: FONTS.varsity,
+    fontSize: 15,
+    lineHeight: 18,
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
   codeActive: {
-    color: '#fff',
+    color: PALETTE.paper,
   },
 });

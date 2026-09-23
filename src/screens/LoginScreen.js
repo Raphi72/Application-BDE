@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -11,14 +9,16 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import Text, { TextInput } from '../components/ui/AppText';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../config/supabase';
 import { AUTH_EMAIL_REDIRECT_URL } from '../config/authEmail';
-import { COLORS } from '../constants/theme';
+import { COLORS, FONTS, PALETTE } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import PressableScale from '../components/PressableScale';
+import { PopButton } from '../components/ui/Pop';
+import { AuthBackdrop, AuthBrand, authStyles } from '../components/ui/Auth';
 import FadeIn from '../components/FadeIn';
 
 // Helper pour les alertes cross-platform
@@ -150,18 +150,15 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <AuthBackdrop />
       <View style={styles.content}>
-        <LanguageSwitcher style={styles.languageSwitcher} />
+        <LanguageSwitcher floating />
 
-        <View style={styles.header}>
-          <Ionicons name="school-outline" size={64} color={COLORS.primary} />
-          <Text style={styles.title}>BDE App</Text>
-          <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
-        </View>
+        <AuthBrand subtitle={t('auth.tagline')} />
 
         <View style={styles.form}>
           <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
-            <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="mail-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder={t('auth.email')}
@@ -177,7 +174,7 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder={t('auth.password')}
@@ -216,17 +213,7 @@ export default function LoginScreen({ navigation }) {
             </FadeIn>
           ) : null}
 
-          <PressableScale
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.text} />
-            ) : (
-              <Text style={styles.buttonText}>{t('auth.loginButton')}</Text>
-            )}
-          </PressableScale>
+          <PopButton title={t('auth.loginButton')} onPress={handleLogin} loading={loading} containerStyle={{ marginTop: 8 }} />
 
           <TouchableOpacity
             style={styles.linkButton}
@@ -258,7 +245,7 @@ export default function LoginScreen({ navigation }) {
             {!resetSent ? (
               <>
                 <View style={styles.modalIconContainer}>
-                  <Ionicons name="key-outline" size={60} color={COLORS.primary} />
+                  <Ionicons name="key" size={60} color={COLORS.text} />
                 </View>
 
                 <Text style={styles.modalDescription}>
@@ -266,7 +253,7 @@ export default function LoginScreen({ navigation }) {
                 </Text>
 
                 <View style={[styles.inputContainer, resetEmailFocused && styles.inputContainerFocused]}>
-                  <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+                  <Ionicons name="mail-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder={t('auth.yourEmailAddress')}
@@ -288,17 +275,7 @@ export default function LoginScreen({ navigation }) {
                   </Text>
                 </View>
 
-                <PressableScale
-                  style={[styles.button, resetLoading && styles.buttonDisabled]}
-                  onPress={handleResetPassword}
-                  disabled={resetLoading}
-                >
-                  {resetLoading ? (
-                    <ActivityIndicator color={COLORS.text} />
-                  ) : (
-                    <Text style={styles.buttonText}>{t('auth.sendLink')}</Text>
-                  )}
-                </PressableScale>
+                <PopButton title={t('auth.sendLink')} onPress={handleResetPassword} loading={resetLoading} containerStyle={{ marginTop: 8 }} />
               </>
             ) : (
               <>
@@ -334,12 +311,7 @@ export default function LoginScreen({ navigation }) {
                   </Text>
                 </View>
 
-                <PressableScale
-                  style={styles.button}
-                  onPress={closeForgotPassword}
-                >
-                  <Text style={styles.buttonText}>{t('auth.backToLogin')}</Text>
-                </PressableScale>
+                <PopButton title={t('auth.backToLogin')} onPress={closeForgotPassword} containerStyle={{ marginTop: 8 }} />
               </>
             )}
           </View>
@@ -382,47 +354,16 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    height: 56,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.primary,
-  },
+  inputContainer: authStyles.inputContainer,
+  inputContainerFocused: authStyles.inputContainerFocused,
   inputIcon: {
     marginRight: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.text,
-    backgroundColor: 'transparent',
-  },
+  input: authStyles.input,
   eyeIcon: {
     padding: 4,
   },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${COLORS.error}26`,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: `${COLORS.error}4D`,
-  },
+  errorContainer: authStyles.errorContainer,
   errorText: {
     color: COLORS.error,
     fontSize: 14,
@@ -458,19 +399,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
   },
-  linkTextBold: {
-    fontWeight: 'bold',
-    color: COLORS.primary,
-  },
+  linkTextBold: authStyles.link,
   forgotPasswordButton: {
     alignSelf: 'flex-end',
     marginBottom: 8,
     marginTop: -8,
   },
-  forgotPasswordText: {
-    color: COLORS.primary,
-    fontSize: 14,
-  },
+  forgotPasswordText: authStyles.link,
   // Modal styles
   modalContainer: {
     flex: 1,
@@ -480,13 +415,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    padding: 18,
+    backgroundColor: PALETTE.sun,
+    borderBottomWidth: 2.5,
+    borderBottomColor: PALETTE.ink,
   },
   modalTitle: {
+    fontFamily: FONTS.display,
     fontSize: 20,
-    fontWeight: 'bold',
     color: COLORS.text,
   },
   modalContent: {

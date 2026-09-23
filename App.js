@@ -1,12 +1,25 @@
 import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { Platform, AppState } from 'react-native';
+import { Platform, AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as NavigationBar from 'expo-navigation-bar';
 import Constants from 'expo-constants';
+import { useFonts } from 'expo-font';
+import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
+import {
+  BigShouldersDisplay_800ExtraBold,
+  BigShouldersDisplay_900Black,
+} from '@expo-google-fonts/big-shoulders-display';
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import { PALETTE } from './src/constants/theme';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -45,11 +58,28 @@ export default function App() {
           name: 'default',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#7C5CFF',
+          lightColor: PALETTE.tangerine,
         });
       }
     })();
   }, []);
+
+  const [fontsLoaded, fontError] = useFonts({
+    DelaGothicOne_400Regular,
+    BigShouldersDisplay_800ExtraBold,
+    BigShouldersDisplay_900Black,
+    SpaceGrotesk_400Regular,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+  });
+
+  // Fond papier le temps du chargement des polices (quelques centaines de ms)
+  // pour ne jamais afficher l'app avec la police système. En cas d'échec, on
+  // démarre quand même avec les polices système.
+  if (!fontsLoaded && !fontError) {
+    return <View style={{ flex: 1, backgroundColor: PALETTE.paper }} />;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

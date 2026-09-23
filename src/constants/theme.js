@@ -1,65 +1,120 @@
 /**
- * Thème "Futuriste Clean" pour l'application BDE
+ * Thème « NØVYX » — pop varsity.
+ *
+ * Papier crème, encre presque noire, blocs de couleur vive, contours épais et
+ * ombres dures décalées. Règle de contraste : les couleurs vives servent de
+ * FOND avec du texte encre par-dessus ; pour du texte coloré sur papier, on
+ * utilise les variantes foncées (*Text).
  */
+export const PALETTE = {
+  paper: '#FFF4E6',
+  paperDeep: '#F6E2C6',
+  white: '#FFFDF9',
+  ink: '#17120E',
+  inkSoft: '#62564B',
+
+  tangerine: '#FF5A1F',
+  periwinkle: '#8A7DFF',
+  sun: '#FFC53D',
+  lime: '#C3F04A',
+  bubblegum: '#FF85C8',
+  mint: '#43D9AD',
+  cherry: '#E8322C',
+};
+
 export const COLORS = {
-    // Fond général (Very dark blue/black)
-    background: '#0E0E13',
+  // Fonds
+  background: PALETTE.paper,
+  surface: PALETTE.white,
+  surfaceLight: '#EBDCC6', // séparateurs, fonds discrets, états désactivés
 
-    // Surfaces (Cartes, headers, tabbar)
-    surface: '#1A1A24',
-    surfaceLight: '#2A2A35', // Pour les bordures ou états hover
+  // Textes
+  text: PALETTE.ink,
+  textSecondary: PALETTE.inkSoft,
 
-    // Textes
-    text: '#FFFFFF',
-    textSecondary: '#A0A0B0', // Gris bleuté pour les sous-titres
+  // Accents (fonds) et leurs variantes lisibles en texte sur papier
+  primary: PALETTE.tangerine,
+  primaryText: '#B83A0B',
+  secondary: PALETTE.periwinkle,
+  secondaryText: '#5A4FCF',
+  onPrimary: PALETTE.ink, // texte / icône posé sur un fond coloré
 
-    // Accents
-    primary: '#7C5CFF', // Violet futuriste
-    secondary: '#00FFD1', // Turquoise néon
+  // Fonctionnels (lisibles en texte sur papier)
+  success: '#0E7A41',
+  error: '#C8201B',
+  warning: '#8A5300',
 
-    // Fonctionnels
-    success: '#4CAF50',
-    error: '#FF453A',
-    warning: '#FFD60A',
+  // Éléments
+  border: PALETTE.ink,
+  inputBackground: PALETTE.white,
+};
 
-    // Éléments
-    border: '#2A2A35',
-    inputBackground: '#13131A',
+// Couleur signature de chaque rubrique : header, onglet actif, accents.
+export const SECTION_COLORS = {
+  Events: PALETTE.tangerine,
+  Polls: PALETTE.periwinkle,
+  News: PALETTE.sun,
+  Clubs: PALETTE.lime,
+  Admin: PALETTE.bubblegum,
+  Profile: PALETTE.bubblegum,
+};
+
+// Rotation de couleurs pour les éléments sans visuel (événement sans photo,
+// pastille de club…) : choisie de façon stable à partir d'un identifiant.
+export const ACCENT_CYCLE = [
+  PALETTE.tangerine,
+  PALETTE.periwinkle,
+  PALETTE.sun,
+  PALETTE.lime,
+  PALETTE.bubblegum,
+  PALETTE.mint,
+];
+
+export const accentFor = (key) => {
+  const str = String(key ?? '');
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  return ACCENT_CYCLE[Math.abs(hash) % ACCENT_CYCLE.length];
 };
 
 export const SPACING = {
-    xs: 4,
-    s: 8,
-    m: 16,
-    l: 24,
-    xl: 32,
+  xs: 4,
+  s: 8,
+  m: 16,
+  l: 24,
+  xl: 32,
 };
 
-// Échelle unique de rayons de bordure : petit élément (chip, input) / carte / grand conteneur
+// Petit élément (chip, input) / carte / grand conteneur
 export const RADIUS = {
-    s: 8,
-    m: 16,
-    l: 20,
+  s: 10,
+  m: 18,
+  l: 24,
 };
+
+// Épaisseur de contour et décalage des ombres dures (style pop)
+export const STROKE = 2.5;
+export const HARD_SHADOW = { x: 4, y: 5 };
 
 export const FONTS = {
-    regular: 'System', // On garde la font système pour l'instant
-    bold: 'System',
+  // Titres : grosse, tranchée, festive
+  display: 'DelaGothicOne_400Regular',
+  // Chiffres, étiquettes, chips : condensée façon maillot varsity
+  varsity: 'BigShouldersDisplay_900Black',
+  varsityBold: 'BigShouldersDisplay_800ExtraBold',
+  // Texte courant
+  body: 'SpaceGrotesk_400Regular',
+  bodyMedium: 'SpaceGrotesk_500Medium',
+  bodySemiBold: 'SpaceGrotesk_600SemiBold',
+  bodyBold: 'SpaceGrotesk_700Bold',
+  // Compatibilité avec l'ancien thème
+  regular: 'SpaceGrotesk_400Regular',
+  bold: 'SpaceGrotesk_700Bold',
 };
 
+// Les ombres floues de l'ancien thème sont remplacées par des ombres dures
+// (voir PopCard) ; on garde les clés pour les écrans qui les étalent encore.
 export const SHADOWS = {
-    card: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    neon: {
-        shadowColor: '#7C5CFF',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 10,
-        elevation: 8,
-    }
+  card: {},
+  neon: {},
 };

@@ -17,10 +17,9 @@ import {
   Platform,
   View,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import Text from '../components/ui/AppText';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import CustomBottomTabBar from './CustomBottomTabBar';
 import { ProfileNavContext } from './ProfileNav';
@@ -45,7 +44,9 @@ import AdminNewsScreen from '../screens/admin/AdminNewsScreen';
 import AdminClubsScreen from '../screens/admin/AdminClubsScreen';
 import AdminClubProposalsScreen from '../screens/admin/AdminClubProposalsScreen';
 
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS } from '../constants/theme';
+import { PopPressable } from '../components/ui/Pop';
+import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
@@ -62,7 +63,7 @@ const WINDOW_WIDTH = Dimensions.get('window').width;
 // Les 4 catégories principales, swipeables horizontalement, dans cet ordre.
 const SWIPE_TABS = [
   { name: 'Events', translationKey: 'navigation.events', icon: 'calendar', component: EventsScreen },
-  { name: 'Polls', translationKey: 'navigation.polls', icon: 'checkmark-circle', component: PollsScreen },
+  { name: 'Polls', translationKey: 'navigation.polls', icon: 'stats-chart', component: PollsScreen },
   { name: 'News', translationKey: 'navigation.news', icon: 'newspaper', component: NewsScreen },
   { name: 'Clubs', translationKey: 'navigation.clubs', icon: 'people', component: ClubsScreen },
 ];
@@ -78,22 +79,6 @@ const SWIPE_VELOCITY_THRESHOLD = 800;
 // de SWIPE_FAIL_DY verticaux sans activation, le geste est laissé au scroll.
 const SWIPE_ACTIVATE_DX = 10;
 const SWIPE_FAIL_DY = 20;
-
-/**
- * En-tête simple pour l'écran Admin (titre + bouton profil), équivalent
- * à l'en-tête que l'ancien Tab.Navigator affichait pour cet onglet.
- * Admin n'est pas swipeable, donc n'est pas inclus dans le pager de catégories.
- */
-function AdminHeaderBar({ title, onProfilePress }) {
-  return (
-    <View style={styles.adminHeader}>
-      <Text style={styles.adminHeaderTitle}>{title}</Text>
-      <TouchableOpacity onPress={onProfilePress} style={{ padding: 4 }}>
-        <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 /**
  * Vue du pager de catégories, rendue à l'intérieur de notre navigateur
@@ -214,11 +199,17 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
         }),
     [onPanUpdate, onPanFinish, goToIndex]
   );
+
   const openProfile = useCallback(() => navigation.navigate('Profile'), [navigation]);
 
   const tabs = state.routes.map((route) => {
     const { options } = descriptors[route.key];
-    return { name: route.name, icon: options.icon, title: options.title ?? route.name };
+    return {
+      name: route.name,
+      icon: options.icon,
+      color: SECTION_COLORS[route.name],
+      title: options.title ?? route.name,
+    };
   });
 
   return (
@@ -251,7 +242,6 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
 
         {isAdmin && adminActive && (
           <View style={{ flex: 1 }}>
-            <AdminHeaderBar title={t('navigation.admin')} onProfilePress={openProfile} />
             <AdminStack />
           </View>
         )}
@@ -324,28 +314,17 @@ function MainTabs({ isAdmin }) {
 }
 
 /**
- * Stack admin
+ * Stack admin : l'accueil rend son propre ScreenHeader, les sous-écrans le
+ * header de détail de la rubrique (bandeau rose).
  */
 function AdminStack() {
   const { t } = useLanguage();
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.background,
-        },
-        headerTintColor: COLORS.text,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: COLORS.text,
-        },
-        headerShadowVisible: false, // Cleaner look
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions(SECTION_COLORS.Admin)}>
       <Stack.Screen
         name="AdminHome"
         component={AdminHomeScreen}
-        options={{ title: t('admin.title') }}
+        options={{ title: t('admin.title'), headerShown: false }}
       />
       <Stack.Screen
         name="AdminEvents"
@@ -376,68 +355,44 @@ function AdminStack() {
   );
 }
 
-/**
- * Écran d'accueil admin
- */
+const ADMIN_MENU = [
+  { route: 'AdminEvents', labelKey: 'admin.events', icon: 'calendar', color: SECTION_COLORS.Events },
+  { route: 'AdminPolls', labelKey: 'admin.polls', icon: 'stats-chart', color: SECTION_COLORS.Polls },
+  { route: 'AdminNews', labelKey: 'admin.news', icon: 'newspaper', color: SECTION_COLORS.News },
+  { route: 'AdminClubs', labelKey: 'admin.clubs', icon: 'people', color: SECTION_COLORS.Clubs },
+  { route: 'AdminClubProposals', labelKey: 'admin.clubProposals', icon: 'document-text', color: PALETTE.mint },
+];
+
 /**
  * Écran d'accueil admin
  */
 function AdminHomeScreen({ navigation }) {
-  const { signOut, user } = useAuth();
+  const { user } = useAuth();
   const { t } = useLanguage();
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('profile.adminPanel')}</Text>
-        <Text style={styles.subtitle}>{t('admin.welcome', { email: user?.email })}</Text>
-      </View>
+      <ScreenHeader
+        title={t('navigation.admin').toUpperCase()}
+        subtitle={t('admin.welcome', { email: user?.email })}
+        color={SECTION_COLORS.Admin}
+      />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.menu}>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('AdminEvents')}
-        >
-          <Ionicons name="calendar" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>{t('admin.events')}</Text>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('AdminPolls')}
-        >
-          <Ionicons name="checkmark-circle" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>{t('admin.polls')}</Text>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('AdminNews')}
-        >
-          <Ionicons name="newspaper" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>{t('admin.news')}</Text>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('AdminClubs')}
-        >
-          <Ionicons name="people" size={32} color={COLORS.primary} />
-          <Text style={styles.menuText}>{t('admin.clubs')}</Text>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate('AdminClubProposals')}
-        >
-          <Ionicons name="document-text" size={32} color={COLORS.secondary} />
-          <Text style={styles.menuText}>{t('admin.clubProposals')}</Text>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
-        </TouchableOpacity>
+        {ADMIN_MENU.map((item) => (
+          <PopPressable
+            key={item.route}
+            onPress={() => navigation.navigate(item.route)}
+            containerStyle={styles.menuItemContainer}
+            style={styles.menuItem}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
+              <Ionicons name={item.icon} size={24} color={PALETTE.ink} />
+            </View>
+            <Text style={styles.menuText}>{t(item.labelKey)}</Text>
+            <Ionicons name="arrow-forward" size={22} color={PALETTE.ink} />
+          </PopPressable>
+        ))}
       </ScrollView>
     </View>
   );
@@ -508,7 +463,7 @@ export default function AppNavigator() {
   if (session && isPasswordRecovery) {
     return (
       <NavigationContainer>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <ResetPasswordScreen onPasswordReset={clearPasswordRecovery} />
       </NavigationContainer>
     );
@@ -516,7 +471,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       {session ? (
         <Stack.Navigator
           screenOptions={{
@@ -530,17 +485,8 @@ export default function AppNavigator() {
             name="Profile"
             component={ProfileScreen}
             options={{
+              ...stackScreenOptions(SECTION_COLORS.Profile),
               headerShown: true,
-              headerStyle: {
-                backgroundColor: COLORS.surface,
-                borderBottomWidth: 1,
-                borderBottomColor: COLORS.border,
-              },
-              headerTintColor: COLORS.text,
-              headerTitleStyle: {
-                fontWeight: 'bold',
-                color: COLORS.text,
-              },
               title: t('profile.title'),
             }}
           />
@@ -571,58 +517,32 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
   },
-  adminHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  adminHeaderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  header: {
-    backgroundColor: COLORS.surface,
-    padding: 24,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-  },
   menu: {
-    padding: 20,
+    padding: 16,
+    paddingTop: 12,
+  },
+  menuItemContainer: {
+    marginBottom: 14,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+    padding: 14,
+  },
+  menuIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuText: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
+    fontFamily: FONTS.display,
+    fontSize: 17,
     color: COLORS.text,
-    marginLeft: 16,
+    marginLeft: 14,
   },
 });

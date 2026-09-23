@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -12,12 +10,14 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
+import Text, { TextInput } from '../components/ui/AppText';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import PressableScale from '../components/PressableScale';
+import { PopButton } from '../components/ui/Pop';
+import { AuthBackdrop, AuthBrand, authStyles } from '../components/ui/Auth';
 import FadeIn from '../components/FadeIn';
 
 // Helper pour les alertes cross-platform
@@ -160,19 +160,16 @@ export default function RegisterScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <AuthBackdrop />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <LanguageSwitcher style={styles.languageSwitcher} />
+          <LanguageSwitcher floating />
 
-          <View style={styles.header}>
-            <Ionicons name="person-add-outline" size={64} color={COLORS.primary} />
-            <Text style={styles.title}>{t('auth.registerTitle')}</Text>
-            <Text style={styles.subtitle}>{t('auth.registerSubtitle')}</Text>
-          </View>
+          <AuthBrand title={t('auth.registerTitle')} subtitle={t('auth.registerSubtitle')} />
 
           <View style={styles.form}>
             <View style={[styles.inputContainer, nameFocused && styles.inputContainerFocused]}>
-              <Ionicons name="person-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder={t('auth.fullName')}
@@ -209,7 +206,7 @@ export default function RegisterScreen({ navigation }) {
             ) : null}
 
             <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-              <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder={t('auth.password')}
@@ -235,7 +232,7 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             <View style={[styles.inputContainer, confirmPasswordFocused && styles.inputContainerFocused]}>
-              <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder={t('auth.confirmPassword')}
@@ -267,17 +264,7 @@ export default function RegisterScreen({ navigation }) {
               </FadeIn>
             ) : null}
 
-            <PressableScale
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.text} />
-              ) : (
-                <Text style={styles.buttonText}>{t('auth.signupButton')}</Text>
-              )}
-            </PressableScale>
+            <PopButton title={t('auth.signupButton')} onPress={handleRegister} loading={loading} containerStyle={{ marginTop: 8 }} />
 
             <TouchableOpacity
               style={styles.linkButton}
@@ -332,12 +319,7 @@ export default function RegisterScreen({ navigation }) {
               </Text>
             </View>
 
-            <PressableScale
-              style={styles.modalButton}
-              onPress={handleCloseSuccessModal}
-            >
-              <Text style={styles.modalButtonText}>{t('auth.goToLogin')}</Text>
-            </PressableScale>
+            <PopButton title={t('auth.goToLogin')} onPress={handleCloseSuccessModal} containerStyle={{ alignSelf: 'stretch' }} />
           </View>
         </View>
       </Modal>
@@ -382,25 +364,8 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    height: 56,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.primary,
-  },
+  inputContainer: authStyles.inputContainer,
+  inputContainerFocused: authStyles.inputContainerFocused,
   inputError: {
     borderColor: COLORS.error,
     marginBottom: 4,
@@ -414,25 +379,11 @@ const styles = StyleSheet.create({
   inputIcon: {
     marginRight: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.text,
-    backgroundColor: 'transparent',
-  },
+  input: authStyles.input,
   eyeIcon: {
     padding: 4,
   },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${COLORS.error}26`,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: `${COLORS.error}4D`,
-  },
+  errorContainer: authStyles.errorContainer,
   errorMessageText: {
     color: COLORS.error,
     fontSize: 14,
@@ -468,10 +419,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
   },
-  linkTextBold: {
-    fontWeight: 'bold',
-    color: COLORS.primary,
-  },
+  linkTextBold: authStyles.link,
   // Modal styles
   modalContainer: {
     flex: 1,

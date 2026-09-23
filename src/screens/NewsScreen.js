@@ -1,32 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
-import { useOpenProfile } from '../navigation/ProfileNav';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Image,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
+import Text from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import NewsCard from '../components/NewsCard';
 import { supabase } from '../config/supabase';
-import { formatDate } from '../utils/dateUtils';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { dateParts } from '../utils/dateUtils';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
+import { plural } from '../utils/plural';
+import { PosterFallback } from '../components/EventCard';
+import { EmptyState, Sticker } from '../components/ui/Deco';
+import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
+const COLOR = SECTION_COLORS.News;
 
 /**
  * Écran de liste des actualités
  */
 function NewsListScreen({ navigation }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,38 +73,37 @@ function NewsListScreen({ navigation }) {
     loadNews(true);
   };
 
-  const renderNews = ({ item }) => (
-    <NewsCard
-      news={item}
-      onPress={() => navigation.navigate('NewsDetails', { news: item })}
-    />
-  );
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <FlatList
-        data={news}
-        renderItem={renderNews}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="newspaper-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>{t('news.noNews')}</Text>
-          </View>
-        }
+      <ScreenHeader
+        title={t('news.title').toUpperCase()}
+        subtitle={plural(t, language, news.length, 'news.countOne', 'news.countLabel')}
+        color={COLOR}
       />
+      {loading ? (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={PALETTE.ink} />
+        </View>
+      ) : (
+        <FlatList
+          data={news}
+          renderItem={({ item, index }) => (
+            <NewsCard
+              news={item}
+              featured={index === 0}
+              onPress={() => navigation.navigate('NewsDetails', { news: item })}
+            />
+          )}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={
+            <EmptyState emoji="📰" title={t('news.emptyTitle')} message={t('news.emptyMessage')} color={COLOR} />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -111,11 +112,11 @@ function NewsListScreen({ navigation }) {
  * Écran de détails d'une actualité
  */
 function NewsDetailsScreen({ route }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { news } = route.params;
-  const { width } = Dimensions.get('window');
+  const { width } = useWindowDimensions();
+  const parts = dateParts(news.date, language);
 
-  // Parse images
   const images = (() => {
     if (!news.image) return [];
     try {
@@ -127,48 +128,33 @@ function NewsDetailsScreen({ route }) {
   })();
 
   return (
-    <ScrollView style={styles.container}>
-      {images.length > 0 && (
-        <View style={styles.sliderContainer}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-          >
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <View style={styles.hero}>
+        {images.length > 0 ? (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
             {images.map((img, index) => (
-              <Image
-                key={index}
-                source={{ uri: img }}
-                style={[styles.sliderImage, { width }]}
-              />
+              <Image key={index} source={{ uri: img }} style={[styles.heroImage, { width }]} />
             ))}
           </ScrollView>
-          {images.length > 1 && (
-            <View style={styles.sliderBadge}>
-              <Ionicons name="images" size={12} color="#fff" />
-              <Text style={styles.sliderText}>{images.length} photos</Text>
-            </View>
-          )}
-        </View>
-      )}
-      <View style={styles.detailsContainer}>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{news.category}</Text>
-        </View>
+        ) : (
+          <PosterFallback color={COLOR} emoji="📰" height={180} />
+        )}
+        {images.length > 1 ? (
+          <Sticker label={`${images.length} photos`} icon="images" color={PALETTE.white} rotate={0} small style={styles.photoCount} />
+        ) : null}
+      </View>
 
+      <View style={styles.detailsContent}>
+        <Sticker label={news.category} color={COLOR} rotate={-3} style={{ marginBottom: 12 }} />
         <Text style={styles.title}>{news.title}</Text>
-
         <View style={styles.meta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{formatDate(news.date)}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="person-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{news.author}</Text>
-          </View>
+          <Ionicons name="calendar" size={16} color={PALETTE.ink} />
+          <Text style={styles.metaText}>
+            {parts.day} {parts.month} {parts.year}
+          </Text>
+          <Text style={styles.metaDot}>•</Text>
+          <Text style={styles.metaText}>{t('news.by')}</Text>
         </View>
-
         <Text style={styles.content}>{news.content}</Text>
       </View>
     </ScrollView>
@@ -179,39 +165,14 @@ function NewsDetailsScreen({ route }) {
  * Navigation pour les actualités
  */
 export default function NewsScreen() {
-  const openProfile = useOpenProfile();
   const { t } = useLanguage();
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.border,
-        },
-        headerTintColor: COLORS.text,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: COLORS.text,
-        },
-        headerShadowVisible: false,
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions(COLOR)}>
       <Stack.Screen
         name="NewsList"
         component={NewsListScreen}
-        options={{
-          title: t('news.title'),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={openProfile}
-              style={{ marginRight: 16, padding: 8 }}
-            >
-              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-            </TouchableOpacity>
-          ),
-        }}
+        options={{ title: t('news.title'), headerShown: false }}
       />
       <Stack.Screen
         name="NewsDetails"
@@ -231,95 +192,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 16,
-  },
   list: {
     padding: 16,
+    paddingTop: 12,
   },
-  detailsContainer: {
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    margin: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  hero: {
+    borderBottomWidth: 2.5,
+    borderBottomColor: PALETTE.ink,
   },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginBottom: 16,
+  heroImage: {
+    height: 250,
+    resizeMode: 'cover',
+    backgroundColor: PALETTE.paperDeep,
   },
-  categoryText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '600',
+  photoCount: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+  },
+  detailsContent: {
+    padding: 16,
+    paddingTop: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 20,
+    fontFamily: FONTS.display,
+    fontSize: 26,
+    lineHeight: 34,
+    color: PALETTE.ink,
+    marginBottom: 12,
   },
   meta: {
     flexDirection: 'row',
-    marginBottom: 24,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-  },
-  metaItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 24,
+    marginBottom: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 2.5,
+    borderBottomColor: PALETTE.ink,
   },
   metaText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.varsityBold,
+    fontSize: 16,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
     marginLeft: 6,
   },
+  metaDot: {
+    marginLeft: 6,
+    color: PALETTE.ink,
+  },
   content: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  sliderContainer: {
-    height: 250,
-    backgroundColor: '#000',
-    marginBottom: -20,
-    zIndex: 1,
-  },
-  sliderImage: {
-    height: 250,
-    resizeMode: 'cover',
-  },
-  sliderBadge: {
-    position: 'absolute',
-    bottom: 30,
-    right: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sliderText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
+    fontSize: 17,
+    lineHeight: 27,
+    color: PALETTE.ink,
   },
 });

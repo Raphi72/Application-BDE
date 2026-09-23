@@ -2,7 +2,6 @@ import { COLORS, SHADOWS } from '../constants/theme';
 import { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -11,6 +10,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import Text from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
 import { format } from 'date-fns';

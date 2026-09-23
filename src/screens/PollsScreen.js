@@ -1,36 +1,27 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useOpenProfile } from '../navigation/ProfileNav';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { View, StyleSheet, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PollCard from '../components/PollCard';
 import { supabase } from '../config/supabase';
-import { formatDate, isPastDate } from '../utils/dateUtils';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { isPastDate } from '../utils/dateUtils';
+import { COLORS, PALETTE, SECTION_COLORS } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
-import PressableScale from '../components/PressableScale';
+import { plural } from '../utils/plural';
+import { EmptyState } from '../components/ui/Deco';
+import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
+const COLOR = SECTION_COLORS.Polls;
 
 /**
- * Écran de liste des sondages
+ * Écran de liste des sondages, avec vote directement dans chaque carte.
  */
-function PollsListScreen({ navigation }) {
-  const { t } = useLanguage();
+function PollsListScreen() {
+  const { t, language } = useLanguage();
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userVotes, setUserVotes] = useState({});
 
   useFocusEffect(
     useCallback(() => {
@@ -137,8 +128,6 @@ function PollsListScreen({ navigation }) {
         votesMap[vote.poll_id] = String.fromCharCode(97 + vote.option_index);
       });
 
-      setUserVotes(votesMap);
-
       setPolls(prevPolls =>
         prevPolls.map(poll => ({
           ...poll,
@@ -150,70 +139,18 @@ function PollsListScreen({ navigation }) {
     }
   };
 
-  // handleVote logic moved to PollDetailsScreen
-
-  const renderPoll = ({ item }) => (
-    <PollCard
-      poll={item}
-      onPress={() => navigation.navigate('PollDetails', { poll: item })}
-    />
-  );
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={polls}
-        renderItem={renderPoll}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="checkmark-circle-outline" size={64} color={COLORS.surfaceLight} />
-            <Text style={styles.emptyText}>{t('polls.noPolls')}</Text>
-          </View>
-        }
-      />
-    </View>
-  );
-}
-
-/**
- * Écran de détails d'un sondage avec possibilité de voter
- */
-function PollDetailsScreen({ route, navigation }) {
-  const { t } = useLanguage();
-  const { poll } = route.params;
-  const [localPoll, setLocalPoll] = useState(poll);
-
-  const isPast = isPastDate(localPoll.endDate);
-  const hasVoted = !!localPoll.userVote;
-  const selectedOption = localPoll.userVote;
-
-  const handleVote = async (optionId) => {
+  const handleVote = async (poll, optionId) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert(t('common.error'), 'Vous devez être connecté pour voter');
+        Alert.alert(t('common.error'), t('polls.loginRequired'));
         return;
       }
-
-      if (hasVoted) {
+      if (poll.userVote) {
         Alert.alert(t('common.error'), t('polls.alreadyVoted'));
         return;
       }
-
-      if (isPast) {
+      if (isPastDate(poll.endDate)) {
         Alert.alert(t('common.error'), t('polls.pollEnded'));
         return;
       }
@@ -222,114 +159,64 @@ function PollDetailsScreen({ route, navigation }) {
 
       const { error } = await supabase
         .from('votes')
-        .insert([{ poll_id: localPoll.id, user_id: user.id, option_index: optionIndex }]);
+        .insert([{ poll_id: poll.id, user_id: user.id, option_index: optionIndex }]);
 
       if (error) throw error;
 
       await supabase
         .from('polls')
-        .update({ total_votes: (localPoll.totalVotes || 0) + 1 })
-        .eq('id', localPoll.id);
+        .update({ total_votes: (poll.totalVotes || 0) + 1 })
+        .eq('id', poll.id);
 
-      // Mettre à jour l'état local
-      setLocalPoll(prev => ({
-        ...prev,
-        userVote: optionId,
-        totalVotes: (prev.totalVotes || 0) + 1,
-        options: prev.options.map(opt =>
-          opt.id === optionId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
-        ),
-      }));
-
-      Alert.alert(t('common.success'), t('polls.voteSuccess'));
+      // Mise à jour locale : la carte bascule sur les résultats
+      setPolls(prev =>
+        prev.map(p =>
+          p.id === poll.id
+            ? {
+                ...p,
+                userVote: optionId,
+                totalVotes: (p.totalVotes || 0) + 1,
+                options: p.options.map(opt =>
+                  opt.id === optionId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+                ),
+              }
+            : p
+        )
+      );
     } catch (error) {
       console.error('Erreur lors du vote:', error);
       Alert.alert(t('common.error'), t('polls.voteError'));
     }
   };
 
+  const openCount = polls.filter((p) => !isPastDate(p.endDate)).length;
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.detailsContainer}>
-        <Text style={styles.question}>{localPoll.question}</Text>
-
-        {isPast && (
-          <View style={[styles.alertBox, styles.alertWarning]}>
-            <Ionicons name="information-circle" size={20} color={COLORS.warning} />
-            <Text style={[styles.alertText, { color: COLORS.warning }]}>{t('polls.pollEnded')}</Text>
-          </View>
-        )}
-
-        {hasVoted && !isPast && (
-          <View style={[styles.alertBox, styles.alertSuccess]}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-            <Text style={[styles.alertText, { color: COLORS.success }]}>{t('polls.alreadyVoted')}</Text>
-          </View>
-        )}
-
-        <View style={styles.optionsContainer}>
-          {localPoll.options.map((option) => {
-            const percentage = localPoll.totalVotes > 0
-              ? Math.round((option.votes / localPoll.totalVotes) * 100)
-              : 0;
-            const isSelected = selectedOption === option.id;
-            const canVote = !hasVoted && !isPast;
-
-            return (
-              <PressableScale
-                key={option.id}
-                style={[
-                  styles.optionCard,
-                  isSelected && styles.selectedOption,
-                  !canVote && styles.disabledOption,
-                ]}
-                onPress={() => handleVote(option.id)}
-                disabled={!canVote}
-              >
-                <View style={styles.optionHeader}>
-                  <Text style={[styles.optionText, isSelected && styles.selectedText]}>
-                    {option.text}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-                  )}
-                </View>
-
-                <View style={styles.barContainer}>
-                  <View style={[styles.bar, { width: `${percentage}%` }]} />
-                </View>
-
-                <View style={styles.optionFooter}>
-                  <Text style={styles.percentage}>{percentage}%</Text>
-                  <Text style={styles.votesCount}>
-                    {option.votes} vote{option.votes > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              </PressableScale>
-            );
-          })}
+    <View style={styles.container}>
+      <ScreenHeader
+        title={t('polls.title').toUpperCase()}
+        subtitle={plural(t, language, openCount, 'polls.countOne', 'polls.activeCount')}
+        color={COLOR}
+      />
+      {loading ? (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={PALETTE.ink} />
         </View>
-
-        <View style={styles.summary}>
-          <View style={styles.summaryRow}>
-            <Ionicons name="people-outline" size={18} color={COLORS.textSecondary} />
-            <Text style={styles.summaryText}>
-              Total : {localPoll.totalVotes} vote{localPoll.totalVotes > 1 ? 's' : ''}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Ionicons name="time-outline" size={18} color={COLORS.textSecondary} />
-            <Text style={styles.summaryText}>
-              {isPast
-                ? t('polls.ended')
-                : localPoll.endDate
-                  ? `${t('polls.endDate')} ${formatDate(localPoll.endDate)}`
-                  : t('polls.noEndDate')}
-            </Text>
-          </View>
-        </View>
-      </View>
-    </ScrollView>
+      ) : (
+        <FlatList
+          data={polls}
+          renderItem={({ item }) => <PollCard poll={item} onVote={handleVote} />}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={
+            <EmptyState emoji="🗳️" title={t('polls.emptyTitle')} message={t('polls.emptyMessage')} color={COLOR} />
+          }
+        />
+      )}
+    </View>
   );
 }
 
@@ -337,44 +224,14 @@ function PollDetailsScreen({ route, navigation }) {
  * Navigation pour les sondages
  */
 export default function PollsScreen() {
-  const openProfile = useOpenProfile();
   const { t } = useLanguage();
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.border,
-        },
-        headerTintColor: COLORS.text,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: COLORS.text,
-        },
-        headerShadowVisible: false,
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions(COLOR)}>
       <Stack.Screen
         name="PollsList"
         component={PollsListScreen}
-        options={{
-          title: t('polls.title'),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={openProfile}
-              style={{ marginRight: 16, padding: 8 }}
-            >
-              <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
-      <Stack.Screen
-        name="PollDetails"
-        component={PollDetailsScreen}
-        options={{ title: t('polls.pollDetailsTitle') }}
+        options={{ title: t('polls.title'), headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -389,126 +246,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 16,
-  },
   list: {
     padding: 16,
-  },
-  detailsContainer: {
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    margin: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  question: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 20,
-  },
-  alertBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-  },
-  alertWarning: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    borderColor: COLORS.warning,
-  },
-  alertSuccess: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderColor: COLORS.success,
-  },
-  alertText: {
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  optionsContainer: {
-    marginBottom: 24,
-  },
-  optionCard: {
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-  },
-  selectedOption: {
-    borderColor: COLORS.success,
-    backgroundColor: 'rgba(76, 175, 80, 0.05)',
-  },
-  disabledOption: {
-    opacity: 0.7,
-  },
-  optionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  optionText: {
-    fontSize: 16,
-    color: COLORS.text,
-    flex: 1,
-  },
-  selectedText: {
-    fontWeight: 'bold',
-    color: COLORS.success,
-  },
-  barContainer: {
-    height: 8,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  bar: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 4,
-  },
-  optionFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  percentage: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  votesCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  summary: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceLight,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  summaryText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginLeft: 8,
+    paddingTop: 12,
   },
 });

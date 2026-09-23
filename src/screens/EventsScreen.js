@@ -1,31 +1,33 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { COLORS, SHADOWS } from '../constants/theme';
+import React, { useState, useMemo } from 'react';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS, accentFor } from '../constants/theme';
 import {
   View,
-  Text,
   StyleSheet,
-  // ... rest of imports
-  FlatList,
-  TouchableOpacity,
-  Modal,
+  SectionList,
   ScrollView,
   Alert,
   ActivityIndicator,
   Image,
-  Dimensions,
+  Linking,
+  RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
+import Text from '../components/ui/AppText';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useOpenProfile } from '../navigation/ProfileNav';
-import EventCard from '../components/EventCard';
+import { useFocusEffect } from '@react-navigation/native';
+import EventCard, { PosterFallback, countdownLabel, posterEmoji } from '../components/EventCard';
 import { supabase } from '../config/supabase';
-import { formatDateTime } from '../utils/dateUtils';
+import { dateParts, daysUntil, formatTime } from '../utils/dateUtils';
 import { useLanguage } from '../context/LanguageContext';
-import PressableScale from '../components/PressableScale';
+import { plural } from '../utils/plural';
+import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
+import { Burst, EmptyState, Segmented, SectionTitle, Sticker } from '../components/ui/Deco';
+import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
+const COLOR = SECTION_COLORS.Events;
 
 // Configuration de la locale française pour le calendrier
 LocaleConfig.locales['fr'] = {
@@ -42,56 +44,27 @@ LocaleConfig.defaultLocale = 'fr';
 // La semaine commence le lundi (1 = lundi, 0 = dimanche)
 LocaleConfig.locales['fr'].firstDay = 1;
 
-/**
- * Écran de liste des événements
- */
+const dayKey = (date) => (date ? String(date).split('T')[0] : '');
 
+/**
+ * Écran de liste des événements : « À venir » (le plus proche en premier, mis
+ * en avant) puis « Passés » (le plus récent en premier), ou vue calendrier.
+ */
 function EventsListScreen({ navigation }) {
-  const { t } = useLanguage();
-  const openProfile = useOpenProfile();
-  // ... state declarations ...
+  const { t, language } = useLanguage();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userRegistrations, setUserRegistrations] = useState([]);
   const [viewMode, setViewMode] = useState('list');
   const [selectedDate, setSelectedDate] = useState('');
 
-  // Use useFocusEffect to refresh data when screen is focused (e.g. coming back from Details)
+  // Recharge à chaque retour sur l'écran (ex. après une inscription)
   useFocusEffect(
     React.useCallback(() => {
       loadEvents();
       loadUserRegistrations();
     }, [])
   );
-
-  // Ajouter les boutons dans le header (calendrier à gauche, profil à droite)
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
-          {/* Bouton calendrier/liste */}
-          <TouchableOpacity
-            onPress={() => setViewMode(prev => prev === 'list' ? 'calendar' : 'list')}
-            style={[styles.headerButton, { marginRight: 16 }]} // décale un peu plus le calendrier
-          >
-            <Ionicons
-              name={viewMode === 'list' ? "calendar" : "list"}
-              size={24}
-              color={COLORS.primary}
-            />
-          </TouchableOpacity>
-          {/* Bouton profil */}
-          <TouchableOpacity
-            onPress={openProfile}
-            style={[styles.headerButton, { marginRight: 0 }]}
-          >
-            <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation, viewMode, openProfile]);
 
   const loadEvents = async (isRefresh = false) => {
     try {
@@ -102,7 +75,6 @@ function EventsListScreen({ navigation }) {
 
       if (error) throw error;
 
-      // Formater les données pour correspondre au format attendu
       const formattedEvents = (data || []).map(event => ({
         id: event.id,
         title: event.title,
@@ -148,8 +120,6 @@ function EventsListScreen({ navigation }) {
       if (error) throw error;
 
       const registrationIds = (data || []).map(r => r.event_id);
-      setUserRegistrations(registrationIds);
-
       setEvents(prevEvents =>
         prevEvents.map(event => ({
           ...event,
@@ -161,179 +131,182 @@ function EventsListScreen({ navigation }) {
     }
   };
 
-  const renderEvent = ({ item }) => (
-    <EventCard
-      event={item}
-      onPress={() => navigation.navigate('EventDetails', {
-        event: item,
-        // Removed onRegister callback to avoid non-serializable warning
-      })}
-    />
-  );
+  const { upcoming, past } = useMemo(() => {
+    const up = events.filter((e) => daysUntil(e.date) >= 0);
+    const old = events.filter((e) => daysUntil(e.date) < 0).reverse();
+    return { upcoming: up, past: old };
+  }, [events]);
 
-  // Préparer les marqueurs pour le calendrier
-  const getMarkedDates = () => {
+  const sections = [
+    upcoming.length > 0 && { key: 'upcoming', title: t('events.upcoming'), color: PALETTE.sun, data: upcoming },
+    past.length > 0 && { key: 'past', title: t('events.past'), color: COLORS.surfaceLight, data: past },
+  ].filter(Boolean);
+
+  const openEvent = (item) => navigation.navigate('EventDetails', { event: item });
+
+  // Marqueurs du calendrier : jours avec événement + jour sélectionné
+  const markedDates = useMemo(() => {
     const marked = {};
-
-    // Compter les événements par date
-    const eventsByDate = {};
-    events.forEach(event => {
-      if (event.date) {
-        const dateStr = event.date.split('T')[0];
-        if (!eventsByDate[dateStr]) {
-          eventsByDate[dateStr] = 0;
-        }
-        eventsByDate[dateStr]++;
-      }
+    const dayStyle = (bg) => ({
+      customStyles: {
+        container: { backgroundColor: bg, borderRadius: 10, borderWidth: 2, borderColor: PALETTE.ink },
+        text: { color: PALETTE.ink, fontFamily: FONTS.bodyBold },
+      },
     });
-
-    // Marquer les jours avec des événements avec un style personnalisé
-    Object.keys(eventsByDate).forEach(dateStr => {
-      const isSelected = dateStr === selectedDate;
-      marked[dateStr] = {
-        customStyles: {
-          container: {
-            backgroundColor: isSelected ? COLORS.primary : 'rgba(124, 92, 255, 0.15)',
-            borderRadius: 8,
-            borderWidth: isSelected ? 2 : 1,
-            borderColor: COLORS.primary,
-          },
-          text: {
-            color: isSelected ? '#ffffff' : COLORS.text,
-            fontWeight: '600',
-          },
-        },
-        marked: true,
-        dotColor: COLORS.secondary,
-        selected: isSelected,
-        selectedColor: COLORS.primary,
-        selectedTextColor: '#ffffff',
-      };
+    events.forEach((e) => {
+      const key = dayKey(e.date);
+      if (key) marked[key] = dayStyle(PALETTE.sun);
     });
-
-    // Marquer la date sélectionnée si elle n'a pas d'événement
-    if (selectedDate && !marked[selectedDate]) {
-      marked[selectedDate] = {
-        customStyles: {
-          container: {
-            backgroundColor: COLORS.primary,
-            borderRadius: 8,
-            borderWidth: 2,
-            borderColor: COLORS.primary,
-          },
-          text: {
-            color: '#ffffff',
-            fontWeight: '600',
-          },
-        },
-        selected: true,
-        selectedColor: COLORS.primary,
-        selectedTextColor: '#ffffff',
-      };
-    }
-
+    if (selectedDate) marked[selectedDate] = dayStyle(COLOR);
     return marked;
-  };
+  }, [events, selectedDate]);
 
-  const selectedDateEvents = selectedDate
-    ? events.filter(e => {
-        if (!e.date) return false;
-        const eventDateStr = e.date.split('T')[0];
-        return eventDateStr === selectedDate;
-      })
-    : [];
+  const selectedDateEvents = selectedDate ? events.filter((e) => dayKey(e.date) === selectedDate) : [];
+
+  const header = (
+    <ScreenHeader
+      title={t('events.title').toUpperCase()}
+      subtitle={plural(t, language, upcoming.length, 'events.countOne', 'events.upcomingCount')}
+      color={COLOR}
+    >
+      <Segmented
+        style={{ marginTop: 12 }}
+        value={viewMode}
+        onChange={setViewMode}
+        options={[
+          { key: 'list', label: t('events.list'), icon: 'list' },
+          { key: 'calendar', label: t('events.calendar'), icon: 'calendar' },
+        ]}
+      />
+    </ScreenHeader>
+  );
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View style={styles.container}>
+        {header}
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={PALETTE.ink} />
+        </View>
+      </View>
+    );
+  }
+
+  if (viewMode === 'calendar') {
+    const calendarEvents = selectedDate ? selectedDateEvents : upcoming.slice(0, 3);
+    return (
+      <View style={styles.container}>
+        {header}
+        <ScrollView
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        >
+          <PopCard containerStyle={{ marginBottom: 22 }} style={{ paddingBottom: 6 }}>
+            <Calendar
+              firstDay={1}
+              markingType="custom"
+              markedDates={markedDates}
+              onDayPress={(day) => setSelectedDate((prev) => (prev === day.dateString ? '' : day.dateString))}
+              enableSwipeMonths
+              renderArrow={(direction) => (
+                <View style={styles.calendarArrow}>
+                  <Ionicons name={direction === 'left' ? 'arrow-back' : 'arrow-forward'} size={18} color={PALETTE.ink} />
+                </View>
+              )}
+              theme={{
+                calendarBackground: PALETTE.white,
+                textSectionTitleColor: PALETTE.inkSoft,
+                dayTextColor: PALETTE.ink,
+                todayTextColor: COLORS.primaryText,
+                textDisabledColor: '#C9BBA7',
+                monthTextColor: PALETTE.ink,
+                textDayFontFamily: FONTS.bodySemiBold,
+                textMonthFontFamily: FONTS.display,
+                textDayHeaderFontFamily: FONTS.varsityBold,
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 15,
+              }}
+            />
+          </PopCard>
+
+          <SectionTitle
+            title={
+              selectedDate
+                ? t('events.eventsOnDate', {
+                    date: `${dateParts(selectedDate, language).day} ${dateParts(selectedDate, language).month}`,
+                  })
+                : t('events.nextEvents')
+            }
+            count={calendarEvents.length}
+            color={selectedDate ? COLOR : PALETTE.sun}
+          />
+          {calendarEvents.length === 0 ? (
+            <EmptyState emoji="🗓️" title={t('events.noEventsThatDay')} color={PALETTE.sun} />
+          ) : (
+            calendarEvents.map((item) => (
+              <EventCard key={item.id} event={item} onPress={() => openEvent(item)} />
+            ))
+          )}
+        </ScrollView>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {viewMode === 'list' ? (
-        <FlatList
-          data={events}
-          renderItem={renderEvent}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={64} color={COLORS.surfaceLight} />
-              <Text style={styles.emptyText}>{t('events.noEvents')}</Text>
-            </View>
-          }
-        />
-      ) : (
-        <ScrollView style={styles.calendarContainer}>
-          <Calendar
-            style={styles.calendar}
-            firstDay={1}
-            markingType={'custom'}
-            theme={{
-              backgroundColor: COLORS.surface,
-              calendarBackground: COLORS.surface,
-              textSectionTitleColor: COLORS.textSecondary,
-              selectedDayBackgroundColor: COLORS.primary,
-              selectedDayTextColor: '#ffffff',
-              todayTextColor: COLORS.secondary,
-              dayTextColor: COLORS.text,
-              textDisabledColor: COLORS.surfaceLight,
-              dotColor: COLORS.primary,
-              selectedDotColor: '#ffffff',
-              arrowColor: COLORS.primary,
-              monthTextColor: COLORS.text,
-              indicatorColor: COLORS.primary,
-              textDayFontWeight: '300',
-              textMonthFontWeight: 'bold',
-              textDayHeaderFontWeight: '300',
-              textDayFontSize: 16,
-              textMonthFontSize: 16,
-              textDayHeaderFontSize: 14
-            }}
-            markedDates={getMarkedDates()}
-            onDayPress={day => setSelectedDate(day.dateString)}
-            enableSwipeMonths={true}
+      {header}
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item, section, index }) => (
+          <EventCard
+            event={item}
+            featured={section.key === 'upcoming' && index === 0}
+            onPress={() => openEvent(item)}
           />
-
-          <View style={styles.selectedEventsContainer}>
-            <Text style={styles.selectedDateTitle}>
-              {selectedDate
-                ? t('events.eventsOnDate', { date: formatDateTime(selectedDate).split(' à ')[0] })
-                : t('events.selectDate')}
-            </Text>
-
-            {selectedDate && selectedDateEvents.length === 0 ? (
-              <Text style={styles.noEventsText}>{t('events.noEvents')}</Text>
-            ) : (
-              selectedDateEvents.map(event => (
-                <View key={event.id} style={styles.miniEventCardWrapper}>
-                  {renderEvent({ item: event })}
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
-      )}
+        )}
+        renderSectionHeader={({ section }) => (
+          <SectionTitle title={section.title} count={section.data.length} color={section.color} style={styles.sectionHeader} />
+        )}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        ListEmptyComponent={
+          <EmptyState
+            emoji="🎟️"
+            title={t('events.emptyTitle')}
+            message={t('events.emptyMessage')}
+            color={COLOR}
+          />
+        }
+      />
     </View>
   );
 }
 
-function EventDetailsScreen({ route, navigation }) {
-  const { t } = useLanguage();
+/**
+ * Détail d'un événement : grande affiche, infos en cartes, bouton
+ * d'inscription toujours visible en bas.
+ */
+function EventDetailsScreen({ route }) {
+  const { t, language } = useLanguage();
+  const { width } = useWindowDimensions();
   const { event } = route.params;
   const [isRegistered, setIsRegistered] = useState(event.registered);
-  // We need local state for counts to update immediately
+  // État local pour que le compteur se mette à jour immédiatement
   const [currentParticipants, setCurrentParticipants] = useState(event.currentParticipants);
+  const [submitting, setSubmitting] = useState(false);
 
-  const { width } = Dimensions.get('window');
+  const days = daysUntil(event.date);
+  const isPast = days < 0;
+  const isFull = event.maxParticipants > 0 && currentParticipants >= event.maxParticipants;
+  const parts = dateParts(event.date, language);
+  const accent = accentFor(event.id);
+  const fill = event.maxParticipants > 0 ? Math.min(1, currentParticipants / event.maxParticipants) : 0;
 
-  // Parse images
   const images = (() => {
     if (!event.image) return [];
     try {
@@ -344,11 +317,17 @@ function EventDetailsScreen({ route, navigation }) {
     }
   })();
 
+  const openMaps = () => {
+    if (!event.location) return;
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`);
+  };
+
   const handleRegister = async () => {
+    setSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert(t('common.error'), 'Vous devez être connecté pour vous inscrire');
+        Alert.alert(t('common.error'), t('events.loginRequired'));
         return;
       }
 
@@ -364,7 +343,6 @@ function EventDetailsScreen({ route, navigation }) {
 
         if (error) throw error;
 
-        // Mettre à jour le compteur
         await supabase
           .from('events')
           .update({ current_participants: Math.max(0, currentParticipants - 1) })
@@ -397,79 +375,116 @@ function EventDetailsScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      Alert.alert(t('common.error'), 'Impossible de modifier l\'inscription');
+      Alert.alert(t('common.error'), t('events.registerError'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  let action = { title: t('events.registerCta'), variant: 'primary', icon: 'ticket', disabled: false };
+  if (isPast) action = { title: t('events.endedCta'), variant: 'light', icon: 'time', disabled: true };
+  else if (isRegistered) action = { title: t('events.unregister'), variant: 'light', icon: 'close', disabled: false };
+  else if (isFull) action = { title: t('events.full'), variant: 'light', icon: 'sad', disabled: true };
+
   return (
-    <ScrollView style={styles.container}>
-      {images.length > 0 && (
-        <View style={styles.sliderContainer}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-          >
-            {images.map((img, index) => (
-              <Image
-                key={index}
-                source={{ uri: img }}
-                style={[styles.sliderImage, { width }]}
-              />
-            ))}
-          </ScrollView>
-          {images.length > 1 && (
-            <View style={styles.sliderBadge}>
-              <Ionicons name="images" size={12} color="#fff" />
-              <Text style={styles.sliderText}>{images.length} photos</Text>
-            </View>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View style={styles.hero}>
+          {images.length > 0 ? (
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+              {images.map((img, index) => (
+                <Image key={index} source={{ uri: img }} style={[styles.heroImage, { width }]} />
+              ))}
+            </ScrollView>
+          ) : (
+            <PosterFallback color={accent} emoji={posterEmoji(event.title)} height={240} />
+          )}
+          {images.length > 1 ? (
+            <Sticker
+              label={`${images.length} photos`}
+              icon="images"
+              color={PALETTE.white}
+              rotate={0}
+              small
+              style={styles.photoCount}
+            />
+          ) : null}
+          {!isPast ? (
+            <Burst label={countdownLabel(days, t).label} size={88} color={PALETTE.bubblegum} style={styles.heroBurst} />
+          ) : (
+            <Sticker label={t('events.pastBadge')} color={PALETTE.ink} textColor={PALETTE.paper} rotate={6} style={styles.heroBurst} />
           )}
         </View>
-      )}
-      <View style={styles.detailsContainer}>
-        <Text style={styles.title}>{event.title}</Text>
 
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>
-              {formatDateTime(event.date, event.time)}
-            </Text>
-          </View>
+        <View style={styles.detailsContent}>
+          {isRegistered ? (
+            <Sticker label={t('events.registered')} icon="checkmark" color={PALETTE.lime} rotate={-3} style={{ marginBottom: 10 }} />
+          ) : null}
+          <Text style={styles.detailTitle}>{event.title}</Text>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={20} color={COLORS.secondary} />
-            <Text style={styles.infoText}>{event.location}</Text>
-          </View>
+          <PopCard containerStyle={styles.cardSpacing} style={styles.whenCard}>
+            <View style={[styles.detailStub, { backgroundColor: accent }]}>
+              <Text style={styles.detailStubWeekday}>{parts.weekday}</Text>
+              <Text style={styles.detailStubDay}>{parts.day}</Text>
+              <Text style={styles.detailStubMonth}>{parts.month}</Text>
+            </View>
+            <View style={styles.whenInfo}>
+              <Text style={styles.whenLong}>{parts.long}</Text>
+              {event.time ? (
+                <View style={styles.infoLine}>
+                  <Ionicons name="time" size={18} color={PALETTE.ink} />
+                  <Text style={styles.infoLineText}>{formatTime(event.time, language)}</Text>
+                </View>
+              ) : null}
+            </View>
+          </PopCard>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.infoText}>
-              {currentParticipants}/{event.maxParticipants} {t('events.participants')}
-            </Text>
-          </View>
+          {event.location ? (
+            <PopPressable onPress={openMaps} containerStyle={styles.cardSpacing} style={styles.placeCard}>
+              <View style={[styles.iconSquare, { backgroundColor: PALETTE.mint }]}>
+                <Ionicons name="location" size={22} color={PALETTE.ink} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardLabel}>{t('events.location')}</Text>
+                <Text style={styles.cardValue}>{event.location}</Text>
+              </View>
+              <Ionicons name="navigate" size={20} color={PALETTE.ink} />
+            </PopPressable>
+          ) : null}
+
+          <PopCard containerStyle={styles.cardSpacing} style={styles.capacityCard}>
+            <View style={styles.capacityHeader}>
+              <Text style={styles.cardLabel}>{t('events.participantsTitle')}</Text>
+              <Text style={styles.capacityBig}>
+                {currentParticipants}
+                <Text style={styles.capacityMax}>/{event.maxParticipants}</Text>
+              </Text>
+            </View>
+            <View style={styles.bigTrack}>
+              <View style={[styles.bigFill, { width: `${fill * 100}%`, backgroundColor: accent }]} />
+            </View>
+          </PopCard>
+
+          {event.description ? (
+            <>
+              <SectionTitle title={t('events.description')} style={{ marginTop: 8 }} />
+              <Text style={styles.description}>{event.description}</Text>
+            </>
+          ) : null}
         </View>
+      </ScrollView>
 
-        <View style={styles.descriptionSection}>
-          <Text style={styles.sectionTitle}>{t('events.description')}</Text>
-          <Text style={styles.description}>{event.description}</Text>
-        </View>
-
-        <PressableScale
-          style={[styles.registerButton, isRegistered && styles.registeredButton]}
+      <View style={styles.actionBar}>
+        <PopButton
+          title={action.title}
+          icon={action.icon}
+          variant={action.variant}
+          disabled={action.disabled}
+          loading={submitting}
           onPress={handleRegister}
-        >
-          <Ionicons
-            name={isRegistered ? "checkmark-circle" : "add-circle-outline"}
-            size={20}
-            color="#fff"
-          />
-          <Text style={styles.registerButtonText}>
-            {isRegistered ? t('events.unregister') : t('events.register')}
-          </Text>
-        </PressableScale>
+        />
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -480,25 +495,11 @@ export default function EventsScreen() {
   const { t } = useLanguage();
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.border,
-        },
-        headerTintColor: COLORS.text,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: COLORS.text,
-        },
-        headerShadowVisible: false,
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions(COLOR)}>
       <Stack.Screen
         name="EventsList"
         component={EventsListScreen}
-        options={{ title: t('events.title') }}
+        options={{ title: t('events.title'), headerShown: false }}
       />
       <Stack.Screen
         name="EventDetails"
@@ -518,142 +519,191 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 16,
-  },
   list: {
     padding: 16,
+    paddingTop: 12,
   },
-  detailsContainer: {
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    margin: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  sectionHeader: {
+    marginTop: 4,
   },
-  title: {
+  calendarArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.sun,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hero: {
+    borderBottomWidth: 2.5,
+    borderBottomColor: PALETTE.ink,
+  },
+  heroImage: {
+    height: 260,
+    resizeMode: 'cover',
+    backgroundColor: PALETTE.paperDeep,
+  },
+  heroBurst: {
+    position: 'absolute',
+    right: 14,
+    bottom: -30,
+  },
+  photoCount: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+  },
+  detailsContent: {
+    padding: 16,
+    paddingTop: 20,
+  },
+  detailTitle: {
+    fontFamily: FONTS.display,
     fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 20,
+    lineHeight: 36,
+    color: PALETTE.ink,
+    marginBottom: 18,
+    paddingRight: 70,
   },
-  infoSection: {
-    marginBottom: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
+  cardSpacing: {
+    marginBottom: 14,
   },
-  infoRow: {
+  whenCard: {
+    flexDirection: 'row',
+  },
+  detailStub: {
+    width: 84,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRightWidth: 2.5,
+    borderRightColor: PALETTE.ink,
+  },
+  detailStubWeekday: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    lineHeight: 17,
+    letterSpacing: 1,
+    color: PALETTE.ink,
+    includeFontPadding: false,
+  },
+  detailStubDay: {
+    fontFamily: FONTS.varsity,
+    fontSize: 50,
+    lineHeight: 52,
+    color: PALETTE.ink,
+    includeFontPadding: false,
+  },
+  detailStubMonth: {
+    fontFamily: FONTS.varsity,
+    fontSize: 18,
+    lineHeight: 20,
+    letterSpacing: 1,
+    color: PALETTE.ink,
+    includeFontPadding: false,
+  },
+  whenInfo: {
+    flex: 1,
+    padding: 14,
+    justifyContent: 'center',
+  },
+  whenLong: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: 16,
+    color: PALETTE.ink,
+    textTransform: 'capitalize',
+    marginBottom: 6,
+  },
+  infoLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  infoText: {
+  infoLineText: {
+    fontFamily: FONTS.varsity,
+    fontSize: 24,
+    lineHeight: 28,
+    color: PALETTE.ink,
+    marginLeft: 6,
+    includeFontPadding: false,
+  },
+  placeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  iconSquare: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardLabel: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.inkSoft,
+  },
+  cardValue: {
+    fontFamily: FONTS.bodyBold,
     fontSize: 16,
-    color: COLORS.textSecondary,
-    marginLeft: 12,
-    flex: 1,
+    color: PALETTE.ink,
   },
-  descriptionSection: {
-    marginBottom: 32,
+  capacityCard: {
+    padding: 14,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text, // Or COLORS.secondary for accent
-    marginBottom: 12,
+  capacityHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  capacityBig: {
+    fontFamily: FONTS.varsity,
+    fontSize: 34,
+    lineHeight: 36,
+    color: PALETTE.ink,
+    includeFontPadding: false,
+  },
+  capacityMax: {
+    fontFamily: FONTS.varsity,
+    fontSize: 20,
+    color: PALETTE.inkSoft,
+  },
+  bigTrack: {
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2.5,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.paper,
+    overflow: 'hidden',
+  },
+  bigFill: {
+    height: '100%',
+    borderRightWidth: 2.5,
+    borderRightColor: PALETTE.ink,
   },
   description: {
     fontSize: 16,
-    color: COLORS.textSecondary,
-    lineHeight: 24,
+    lineHeight: 25,
+    color: PALETTE.ink,
   },
-  registerButton: {
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 8,
-    ...SHADOWS.neon, // Neon glow for the button
-  },
-  registeredButton: {
-    backgroundColor: COLORS.surfaceLight,
-    borderWidth: 1,
-    borderColor: COLORS.success,
-  },
-  registerButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  headerButton: {
-    marginRight: 0,
-    padding: 8,
-  },
-  calendarContainer: {
-    flex: 1,
-  },
-  calendar: {
-    marginBottom: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  selectedEventsContainer: {
-    padding: 16,
-  },
-  selectedDateTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  noEventsText: {
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-  },
-  miniEventCardWrapper: {
-    marginBottom: 16,
-  },
-  sliderContainer: {
-    height: 250,
-    backgroundColor: '#000',
-    marginBottom: -20, // Negative margin to overlap with details container if desired, or just 0
-    zIndex: 1,
-  },
-  sliderImage: {
-    height: 250,
-    resizeMode: 'cover',
-  },
-  sliderBadge: {
+  actionBar: {
     position: 'absolute',
-    bottom: 30, // Above the curved details container
-    right: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sliderText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: PALETTE.paper,
+    borderTopWidth: 2.5,
+    borderTopColor: PALETTE.ink,
   },
 });

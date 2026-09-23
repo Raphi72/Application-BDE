@@ -1,14 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import Text from '../components/ui/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/theme';
+import { PopCard } from '../components/ui/Pop';
+import { FONTS, PALETTE, SECTION_COLORS } from '../constants/theme';
 
 /**
- * Barre d'onglets du bas, visuellement identique à l'ancienne barre native
- * de react-navigation/bottom-tabs, mais pilotée manuellement pour rester
- * synchronisée avec le pager swipeable (catégories) et l'écran Admin,
- * qui vivent tous les deux dans le même conteneur (voir MainTabs).
+ * Barre d'onglets du bas : pilule encre flottante. L'onglet actif prend la
+ * couleur de sa rubrique (pastille derrière l'icône + libellé), et l'ombre
+ * dure de la barre suit cette couleur, ce qui situe la rubrique d'un coup
+ * d'œil pendant le swipe. Pilotée manuellement pour rester synchronisée avec
+ * le pager de catégories et l'écran Admin (voir CategoryPagerView).
  */
 export default function CustomBottomTabBar({
   tabs,
@@ -20,83 +23,98 @@ export default function CustomBottomTabBar({
   onSelectAdmin,
 }) {
   const insets = useSafeAreaInsets();
-  const basePaddingBottom = Platform.OS === 'android' ? 12 : 5;
+  const activeColor = adminActive
+    ? SECTION_COLORS.Admin
+    : tabs.find((tab) => tab.name === activeTabName)?.color ?? PALETTE.tangerine;
+
+  const items = tabs.map((tab) => ({
+    key: tab.name,
+    icon: tab.icon,
+    label: tab.title,
+    color: tab.color,
+    focused: !adminActive && tab.name === activeTabName,
+    onPress: () => onSelectTab(tab.name),
+  }));
+  if (isAdmin) {
+    items.push({
+      key: 'Admin',
+      icon: 'settings',
+      label: adminLabel,
+      color: SECTION_COLORS.Admin,
+      focused: adminActive,
+      onPress: onSelectAdmin,
+    });
+  }
 
   return (
-    <View
-      style={[
-        styles.bar,
-        { paddingBottom: Math.max(insets.bottom, basePaddingBottom) },
-      ]}
-    >
-      {tabs.map((tab) => {
-        const focused = !adminActive && tab.name === activeTabName;
-        const color = focused ? COLORS.primary : COLORS.textSecondary;
-        return (
-          <TouchableOpacity
-            key={tab.name}
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+      <PopCard color={PALETTE.ink} shadowColor={activeColor} radius={26} style={styles.bar}>
+        {items.map((item) => (
+          <Pressable
+            key={item.key}
             style={styles.item}
-            activeOpacity={0.7}
-            onPress={() => onSelectTab(tab.name)}
+            onPress={item.onPress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: item.focused }}
+            accessibilityLabel={item.label}
           >
-            <View style={styles.iconWrapper}>
-              <Ionicons name={focused ? tab.icon : `${tab.icon}-outline`} size={24} color={color} />
+            <View style={[styles.iconPill, item.focused && { backgroundColor: item.color }]}>
+              <Ionicons
+                name={item.focused ? item.icon : `${item.icon}-outline`}
+                size={22}
+                color={item.focused ? PALETTE.ink : PALETTE.paper}
+                style={!item.focused && styles.inactive}
+              />
             </View>
-            <Text style={[styles.label, { color }]} numberOfLines={1}>
-              {tab.title}
+            <Text
+              numberOfLines={1}
+              style={[styles.label, item.focused ? { color: item.color } : styles.inactive]}
+            >
+              {item.label}
             </Text>
-          </TouchableOpacity>
-        );
-      })}
-
-      {isAdmin && (
-        <TouchableOpacity
-          style={styles.item}
-          activeOpacity={0.7}
-          onPress={onSelectAdmin}
-        >
-          <View style={styles.iconWrapper}>
-            <Ionicons
-              name={adminActive ? 'settings' : 'settings-outline'}
-              size={24}
-              color={adminActive ? COLORS.primary : COLORS.textSecondary}
-            />
-          </View>
-          <Text
-            style={[styles.label, { color: adminActive ? COLORS.primary : COLORS.textSecondary }]}
-            numberOfLines={1}
-          >
-            {adminLabel}
-          </Text>
-        </TouchableOpacity>
-      )}
+          </Pressable>
+        ))}
+      </PopCard>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    backgroundColor: PALETTE.paper,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+  },
   bar: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
-    minHeight: 65,
-    paddingTop: 5,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
   },
   item: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 4,
-    minHeight: 55,
+    justifyContent: 'center',
+    minHeight: 54,
   },
-  iconWrapper: {
-    marginBottom: 2,
+  iconPill: {
+    width: 48,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
   },
   label: {
-    fontSize: 11,
-    marginTop: 2,
-    textAlign: 'center',
+    fontFamily: FONTS.varsity,
+    fontSize: 13,
+    lineHeight: 15,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: PALETTE.paper,
+    includeFontPadding: false,
+  },
+  inactive: {
+    color: PALETTE.paper,
+    opacity: 0.6,
   },
 });

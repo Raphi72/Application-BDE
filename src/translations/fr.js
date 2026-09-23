@@ -38,6 +38,7 @@ export default {
 
   // Authentification
   auth: {
+    tagline: 'Ta vie étudiante, en plus fort.',
     login: 'Connexion',
     logout: 'Déconnexion',
     signup: 'Inscription',
@@ -114,6 +115,11 @@ export default {
 
   // Profil
   profile: {
+    memberCard: 'Carte de membre',
+    member: 'Membre',
+    settings: 'Réglages',
+    dangerZone: 'Zone sensible',
+    footer: 'NØVYX · BDE aivancity',
     title: 'Profil',
     accountInfo: 'Informations du compte',
     role: 'Rôle',
@@ -143,12 +149,28 @@ export default {
     enterPassword: 'Veuillez entrer votre mot de passe',
     firstConfirmation: 'Première confirmation',
     lastChance: 'DERNIÈRE CHANCE',
-    appVersion: 'BDE App v1.0.0',
+    appVersion: 'Version 1.0.0',
     appMayContainBugs: 'Cette application peut contenir des bugs',
   },
 
   // Événements
   events: {
+    countOne: '{{count}} à venir',
+    upcomingCount: '{{count}} à venir',
+    list: 'Liste',
+    calendar: 'Calendrier',
+    nextEvents: 'Prochains events',
+    noEventsThatDay: 'Rien ce jour-là',
+    emptyTitle: 'Aucun event pour l\'instant',
+    emptyMessage: 'Le BDE prépare la suite. Reviens vite !',
+    loginRequired: 'Vous devez être connecté pour vous inscrire',
+    registerCta: 'Je m\'inscris',
+    endedCta: 'Événement terminé',
+    participantsTitle: 'Participants',
+    todayShort: 'AUJ.',
+    tomorrowShort: 'DEMAIN',
+    nextUp: 'Prochain',
+    pastBadge: 'Passé',
     title: 'Événements',
     upcoming: 'À venir',
     past: 'Passés',
@@ -168,13 +190,23 @@ export default {
     registerError: "Erreur lors de l'inscription",
     alreadyRegistered: 'Vous êtes déjà inscrit',
     eventFull: "L'événement est complet",
-    eventDetailsTitle: 'Détails',
+    eventDetailsTitle: 'Événement',
     eventsOnDate: 'Événements du {{date}}',
     selectDate: 'Sélectionnez une date',
   },
 
   // Sondages
   polls: {
+    countOne: '{{count}} en cours',
+    activeCount: '{{count}} en cours',
+    yourVote: 'Ton vote',
+    pickOne: 'Choisis ta réponse, puis valide',
+    voteCta: 'Valider mon vote',
+    endedBadge: 'Terminé',
+    leading: 'En tête',
+    emptyTitle: 'Aucun sondage en cours',
+    emptyMessage: 'Ta voix compte : reviens quand le BDE lance un vote.',
+    loginRequired: 'Vous devez être connecté pour voter',
     title: 'Sondages',
     active: 'En cours',
     ended: 'Terminés',
@@ -190,11 +222,15 @@ export default {
     pollEnded: 'Ce sondage est terminé',
     results: 'Résultats',
     totalVotes: 'Total des votes',
-    pollDetailsTitle: 'Détails du sondage',
+    pollDetailsTitle: 'Sondage',
   },
 
   // Actualités
   news: {
+    countOne: '{{count}} article',
+    countLabel: '{{count}} articles',
+    emptyTitle: 'Pas encore d\'actus',
+    emptyMessage: 'Les annonces du BDE apparaîtront ici.',
     title: 'Actualités',
     noNews: 'Aucune actualité',
     readMore: 'Lire la suite',
@@ -212,6 +248,14 @@ export default {
 
   // Clubs
   clubs: {
+    countOne: '{{count}} club',
+    countLabel: '{{count}} clubs',
+    yourClubTitle: 'Ton club ici ?',
+    yourClubMessage: 'Monte ton projet avec le BDE : lis la charte, puis propose ton club.',
+    readCharter: 'Lire la charte',
+    emptyTitle: 'Aucun club pour le moment',
+    emptyMessage: 'Sois le premier à en lancer un !',
+    charterTitle: 'La charte',
     title: 'Clubs',
     noClubs: 'Aucun club',
     members: 'membres',
@@ -241,7 +285,7 @@ export default {
     clubCreated: 'Votre club a été créé',
     minMembers: 'Minimum 10 membres requis',
     pageTitle: 'Clubs & Associations',
-    clubDetailsTitle: 'Détails du club',
+    clubDetailsTitle: 'Club',
   },
 
   // Galerie

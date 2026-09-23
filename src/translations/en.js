@@ -38,6 +38,7 @@ export default {
 
   // Authentication
   auth: {
+    tagline: 'Student life, turned up.',
     login: 'Login',
     logout: 'Logout',
     signup: 'Sign up',
@@ -114,6 +115,11 @@ export default {
 
   // Profile
   profile: {
+    memberCard: 'Member card',
+    member: 'Member',
+    settings: 'Settings',
+    dangerZone: 'Danger zone',
+    footer: 'NØVYX · BDE aivancity',
     title: 'Profile',
     accountInfo: 'Account information',
     role: 'Role',
@@ -143,12 +149,28 @@ export default {
     enterPassword: 'Please enter your password',
     firstConfirmation: 'First confirmation',
     lastChance: 'LAST CHANCE',
-    appVersion: 'BDE App v1.0.0',
+    appVersion: 'Version 1.0.0',
     appMayContainBugs: 'This application may contain bugs',
   },
 
   // Events
   events: {
+    countOne: '{{count}} upcoming',
+    upcomingCount: '{{count}} upcoming',
+    list: 'List',
+    calendar: 'Calendar',
+    nextEvents: 'Coming up',
+    noEventsThatDay: 'Nothing that day',
+    emptyTitle: 'No events yet',
+    emptyMessage: 'The BDE is cooking something up. Check back soon!',
+    loginRequired: 'You need to be logged in to register',
+    registerCta: 'Count me in',
+    endedCta: 'Event over',
+    participantsTitle: 'Attendees',
+    todayShort: 'TODAY',
+    tomorrowShort: 'TMRW',
+    nextUp: 'Next up',
+    pastBadge: 'Past',
     title: 'Events',
     upcoming: 'Upcoming',
     past: 'Past',
@@ -168,13 +190,23 @@ export default {
     registerError: 'Error during registration',
     alreadyRegistered: 'You are already registered',
     eventFull: 'This event is full',
-    eventDetailsTitle: 'Details',
+    eventDetailsTitle: 'Event',
     eventsOnDate: 'Events on {{date}}',
     selectDate: 'Select a date',
   },
 
   // Polls
   polls: {
+    countOne: '{{count}} open',
+    activeCount: '{{count}} open',
+    yourVote: 'Your vote',
+    pickOne: 'Pick your answer, then confirm',
+    voteCta: 'Confirm my vote',
+    endedBadge: 'Closed',
+    leading: 'Leading',
+    emptyTitle: 'No polls right now',
+    emptyMessage: 'Your voice matters: come back when the BDE opens a vote.',
+    loginRequired: 'You need to be logged in to vote',
     title: 'Polls',
     active: 'Active',
     ended: 'Ended',
@@ -190,11 +222,15 @@ export default {
     pollEnded: 'This poll has ended',
     results: 'Results',
     totalVotes: 'Total votes',
-    pollDetailsTitle: 'Poll details',
+    pollDetailsTitle: 'Poll',
   },
 
   // News
   news: {
+    countOne: '{{count}} article',
+    countLabel: '{{count}} articles',
+    emptyTitle: 'No news yet',
+    emptyMessage: 'BDE announcements will show up here.',
     title: 'News',
     noNews: 'No news',
     readMore: 'Read more',
@@ -212,6 +248,14 @@ export default {
 
   // Clubs
   clubs: {
+    countOne: '{{count}} club',
+    countLabel: '{{count}} clubs',
+    yourClubTitle: 'Your club here?',
+    yourClubMessage: 'Start your project with the BDE: read the charter, then pitch your club.',
+    readCharter: 'Read the charter',
+    emptyTitle: 'No clubs yet',
+    emptyMessage: 'Be the first to start one!',
+    charterTitle: 'The charter',
     title: 'Clubs',
     noClubs: 'No clubs',
     members: 'members',
@@ -241,7 +285,7 @@ export default {
     clubCreated: 'Your club has been created',
     minMembers: 'Minimum 10 members required',
     pageTitle: 'Clubs & Societies',
-    clubDetailsTitle: 'Club details',
+    clubDetailsTitle: 'Club',
   },
 
   // Gallery

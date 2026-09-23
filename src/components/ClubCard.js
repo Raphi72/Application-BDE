@@ -1,121 +1,168 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+import Text from './ui/AppText';
+import { PopPressable } from './ui/Pop';
+import { Sticker } from './ui/Deco';
+import { firstImage } from './EventCard';
+import { FONTS, PALETTE, SECTION_COLORS, STROKE, accentFor } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
-import PressableScale from './PressableScale';
+
+const initials = (name = '') =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?';
 
 /**
- * Composant Card pour afficher un club
+ * Écusson de club façon patch varsity : pastille ronde colorée, couture en
+ * pointillés et initiales (ou la photo du club si elle existe).
+ */
+export function ClubPatch({ club, size = 76, rotate = -6 }) {
+  const image = firstImage(club.image);
+  const ring = Math.max(4, size * 0.07);
+  return (
+    <View
+      style={[
+        styles.patch,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: accentFor(club.id ?? club.name),
+          transform: [{ rotate: `${rotate}deg` }],
+        },
+      ]}
+    >
+      {image ? (
+        <Image source={{ uri: image }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+      ) : (
+        <>
+          <View
+            style={[
+              styles.stitch,
+              { top: ring, left: ring, right: ring, bottom: ring, borderRadius: size / 2 },
+            ]}
+          />
+          <Text style={[styles.patchText, { fontSize: size * 0.32, lineHeight: size * 0.4 }]}>
+            {initials(club.name)}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Carte club : écusson, nom, catégorie en pastille, description courte et
+ * infos (membres, président).
  * @param {Object} club - Objet club
  * @param {Function} onPress - Fonction appelée au clic
  */
 const ClubCard = ({ club, onPress }) => {
   const { t } = useLanguage();
-  // Helper pour gérer les images multiples (JSON) ou simple URL
-  const getImageSource = (img) => {
-    if (!img) return null;
-    try {
-      const parsed = JSON.parse(img);
-      if (Array.isArray(parsed) && parsed.length > 0) return { uri: parsed[0] };
-    } catch (e) { }
-    return { uri: img };
-  };
 
   return (
-    <PressableScale style={styles.card} onPress={onPress}>
-      <Image source={getImageSource(club.image)} style={styles.image} />
+    <PopPressable
+      onPress={onPress}
+      radius={22}
+      containerStyle={styles.container}
+      style={styles.card}
+      accessibilityLabel={club.name}
+    >
+      <ClubPatch club={club} />
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.name}>{club.name}</Text>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{club.category}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.description} numberOfLines={3}>
-          {club.description}
+        <Text style={styles.name} numberOfLines={2}>
+          {club.name}
         </Text>
-
+        <Sticker label={club.category} color={SECTION_COLORS.Clubs} rotate={-2} small style={{ marginBottom: 8 }} />
+        {club.description ? (
+          <Text style={styles.description} numberOfLines={2}>
+            {club.description}
+          </Text>
+        ) : null}
         <View style={styles.footer}>
           <View style={styles.info}>
-            <Ionicons name="people-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>{club.members} {t('clubs.members')}</Text>
+            <Ionicons name="people" size={15} color={PALETTE.ink} />
+            <Text style={styles.infoText}>
+              {club.members} {t('clubs.members')}
+            </Text>
           </View>
-          <View style={styles.info}>
-            <Ionicons name="person-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>{club.president}</Text>
-          </View>
+          {club.president ? (
+            <View style={[styles.info, { flex: 1 }]}>
+              <Ionicons name="star" size={14} color={PALETTE.ink} />
+              <Text style={styles.infoText} numberOfLines={1}>
+                {club.president}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
-    </PressableScale>
+    </PopPressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.m,
-    marginBottom: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  container: {
+    marginBottom: 20,
   },
-  image: {
-    width: '100%',
-    height: 150,
-    resizeMode: 'cover',
+  card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 14,
+    gap: 14,
+  },
+  patch: {
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  stitch: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderColor: PALETTE.ink,
+    borderStyle: 'dashed',
+  },
+  patchText: {
+    fontFamily: FONTS.display,
+    color: PALETTE.ink,
   },
   content: {
-    padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    flex: 1,
   },
   name: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    flex: 1,
-    marginRight: 8,
-  },
-  categoryBadge: {
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  categoryText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: FONTS.display,
+    fontSize: 19,
+    lineHeight: 25,
+    color: PALETTE.ink,
+    marginBottom: 6,
   },
   description: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     lineHeight: 20,
-    marginBottom: 16,
+    color: PALETTE.ink,
+    marginBottom: 8,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceLight,
+    alignItems: 'center',
+    gap: 14,
   },
   info: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   infoText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginLeft: 6,
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+    marginLeft: 5,
   },
 });
 

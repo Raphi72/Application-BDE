@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Alert,
   Platform,
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import Text, { TextInput } from '../components/ui/AppText';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -27,7 +26,8 @@ const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
   }
 };
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS, SHADOWS, STROKE } from '../constants/theme';
+import { PopButton } from '../components/ui/Pop';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -139,7 +139,7 @@ function CharteModal({ visible, onClose, onAccept, showAcceptButton = false }) {
         {showAcceptButton && (
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.acceptButton} onPress={onAccept}>
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.onPrimary} />
               <Text style={styles.acceptButtonText}>{t('clubs.acceptCharter')}</Text>
             </TouchableOpacity>
           </View>
@@ -323,7 +323,7 @@ export default function ClubProposalScreen({ navigation }) {
   if (checkingProposal) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={COLORS.primaryText} />
       </View>
     );
   }
@@ -331,7 +331,7 @@ export default function ClubProposalScreen({ navigation }) {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return COLORS.warning;
-      case 'under_review': return COLORS.primary;
+      case 'under_review': return COLORS.primaryText;
       case 'approved': return COLORS.success;
       default: return COLORS.textSecondary;
     }
@@ -347,7 +347,7 @@ export default function ClubProposalScreen({ navigation }) {
             <Ionicons 
               name={isApproved ? "checkmark-circle" : "document-text"} 
               size={64} 
-              color={isApproved ? COLORS.success : COLORS.primary}
+              color={isApproved ? COLORS.success : COLORS.primaryText}
             />
             <Text style={styles.existingProposalTitle}>
               {isApproved ? t('clubs.proposalApproved') : 'Proposition en cours'}
@@ -395,21 +395,15 @@ export default function ClubProposalScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* En-tête */}
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="add-circle" size={40} color={COLORS.primary} />
-          </View>
-          <Text style={styles.headerTitle}>{t('clubs.proposeClub')}</Text>
-          <Text style={styles.headerSubtitle}>
-            Remplissez ce formulaire pour soumettre votre projet de club au BDE
-          </Text>
-        </View>
+        {/* En-tête : le titre est déjà dans le header de navigation */}
+        <Text style={styles.headerSubtitle}>
+          Remplissez ce formulaire pour soumettre votre projet de club au BDE
+        </Text>
 
         {/* Section Charte */}
         <View style={styles.charteSection}>
           <View style={styles.charteBanner}>
-            <Ionicons name="document-text-outline" size={24} color={COLORS.primary} />
+            <Ionicons name="document-text-outline" size={24} color={COLORS.primaryText} />
             <View style={styles.charteBannerText}>
               <Text style={styles.charteBannerTitle}>{t('clubs.charter')}</Text>
               <Text style={styles.charteBannerSubtitle}>
@@ -422,7 +416,7 @@ export default function ClubProposalScreen({ navigation }) {
             style={styles.viewCharteButton}
             onPress={() => setShowCharteModal(true)}
           >
-            <Ionicons name="eye-outline" size={20} color={COLORS.primary} />
+            <Ionicons name="eye-outline" size={20} color={COLORS.primaryText} />
             <Text style={styles.viewCharteText}>{t('clubs.viewCharter')}</Text>
           </TouchableOpacity>
 
@@ -444,7 +438,7 @@ export default function ClubProposalScreen({ navigation }) {
               charteAccepted && styles.checkboxChecked
             ]}>
               {charteAccepted && (
-                <Ionicons name="checkmark" size={16} color="#fff" />
+                <Ionicons name="checkmark" size={16} color={COLORS.onPrimary} />
               )}
             </View>
             <Text style={styles.acceptCharteText}>
@@ -600,23 +594,14 @@ export default function ClubProposalScreen({ navigation }) {
         </View>
 
         {/* Bouton de soumission */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (!charteAccepted || loading) && styles.submitButtonDisabled
-          ]}
+        <PopButton
+          title={t('clubs.submitProposal')}
+          icon="send"
           onPress={handleSubmit}
-          disabled={!charteAccepted || loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="send" size={20} color="#fff" />
-              <Text style={styles.submitButtonText}>{t('clubs.submitProposal')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          disabled={!charteAccepted}
+          loading={loading}
+          containerStyle={{ marginTop: 8, marginHorizontal: 16 }}
+        />
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -666,18 +651,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+    fontFamily: FONTS.bodyMedium,
+    fontSize: 15,
+    lineHeight: 22,
+    color: PALETTE.ink,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 18,
   },
   charteSection: {
-    margin: 16,
+    backgroundColor: SECTION_COLORS.Clubs,
+    borderRadius: 20,
     padding: 16,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginHorizontal: 16,
+    marginBottom: 18,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   charteBanner: {
     flexDirection: 'row',
@@ -702,42 +691,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: PALETTE.white,
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
   },
   viewCharteText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
+    fontFamily: FONTS.varsity,
+    fontSize: 18,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
     marginLeft: 8,
   },
   acceptCharteRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: PALETTE.white,
+    borderRadius: 14,
     padding: 12,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
   },
   acceptCharteRowActive: {
-    backgroundColor: `${COLORS.primary}15`,
-    borderColor: COLORS.primary,
-    borderWidth: 1,
+    backgroundColor: PALETTE.sun,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: COLORS.textSecondary,
-    justifyContent: 'center',
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.white,
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   checkboxChecked: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: PALETTE.ink,
   },
   acceptCharteText: {
     flex: 1,
@@ -745,19 +738,20 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   formSection: {
-    margin: 16,
-    marginTop: 0,
+    backgroundColor: PALETTE.white,
+    borderRadius: 20,
     padding: 16,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginHorizontal: 16,
+    marginBottom: 18,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   sectionTitle: {
+    fontFamily: FONTS.display,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 8,
+    lineHeight: 24,
+    color: PALETTE.ink,
+    marginBottom: 14,
   },
   sectionHint: {
     fontSize: 12,
@@ -780,13 +774,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: PALETTE.paper,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    color: PALETTE.ink,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
   },
   textArea: {
     minHeight: 100,
@@ -798,28 +793,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: PALETTE.white,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
   },
   categoryChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: SECTION_COLORS.Clubs,
   },
   categoryChipText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.varsity,
+    fontSize: 16,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
   },
   categoryChipTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+    color: PALETTE.ink,
   },
   capacityInfo: {
     fontSize: 12,
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     marginTop: 8,
     fontStyle: 'italic',
   },
@@ -838,7 +834,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
@@ -872,7 +868,7 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 14,
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontWeight: '600',
     marginBottom: 24,
   },
@@ -897,18 +893,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   acceptButton: {
-    flexDirection: 'row',
+    backgroundColor: PALETTE.tangerine,
+    borderRadius: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 12,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   acceptButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontFamily: FONTS.varsity,
+    fontSize: 20,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
   },
   // Existing proposal styles
   existingProposalContainer: {

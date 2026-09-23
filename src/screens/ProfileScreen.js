@@ -1,22 +1,23 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Alert,
   Platform,
   Modal,
-  TextInput,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
+import Text, { TextInput } from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../config/supabase';
-import { COLORS, SHADOWS } from '../constants/theme';
-import PressableScale from '../components/PressableScale';
+import { COLORS, FONTS, PALETTE, SECTION_COLORS, STROKE } from '../constants/theme';
+import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
+import { SectionTitle, Sticker, Wordmark } from '../components/ui/Deco';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -41,7 +42,7 @@ const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
 /**
  * Écran de profil utilisateur
  */
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen() {
   const { user, signOut, isAdmin } = useAuth();
   const { t, language, setLanguage, availableLanguages, getCurrentLanguage } = useLanguage();
   const [userProfile, setUserProfile] = useState(null);
@@ -203,110 +204,99 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const displayName = userProfile?.name || user?.email?.split('@')[0] || t('profile.user');
+  const initial = (displayName?.[0] || '?').toUpperCase();
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <Ionicons name="person-circle" size={80} color={COLORS.primary} />
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      {/* Carte de membre */}
+      <PopCard
+        color={PALETTE.ink}
+        shadowColor={SECTION_COLORS.Profile}
+        radius={24}
+        containerStyle={{ marginBottom: 26 }}
+        style={styles.memberCard}
+      >
+        <View style={styles.stripes} pointerEvents="none">
+          <View style={[styles.stripe, { backgroundColor: PALETTE.tangerine }]} />
+          <View style={[styles.stripe, { backgroundColor: PALETTE.sun }]} />
+          <View style={[styles.stripe, { backgroundColor: PALETTE.periwinkle }]} />
         </View>
-        <Text style={styles.name}>
-          {userProfile?.name || user?.email?.split('@')[0] || t('profile.user')}
-        </Text>
-        <Text style={styles.email}>{user?.email}</Text>
-        {adminStatus && (
-          <View style={styles.adminBadge}>
-            <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
-            <Text style={styles.adminBadgeText}>{t('profile.administrator')}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('profile.accountInfo')}</Text>
-
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>{t('auth.email')}</Text>
-              <Text style={styles.infoValue}>{user?.email}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={20} color={COLORS.textSecondary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>{t('auth.name')}</Text>
-              <Text style={styles.infoValue}>
-                {userProfile?.name || t('profile.notSpecified')}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>{t('profile.role')}</Text>
-              <Text style={styles.infoValue}>
-                {adminStatus ? t('profile.administrator') : t('profile.user')}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.infoRow, styles.infoRowClickable]}
-            onPress={() => setLanguageModalVisible(true)}
-          >
-            <Ionicons name="language-outline" size={20} color={COLORS.textSecondary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>{t('profile.language')}</Text>
-              <Text style={styles.infoValue}>
-                {getCurrentLanguage().flag} {getCurrentLanguage().name}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+        <View style={styles.cardTop}>
+          <Wordmark size={20} color={PALETTE.paper} />
+          <Sticker label={t('profile.memberCard')} color={PALETTE.sun} rotate={3} small />
         </View>
-      </View>
-
-      {adminStatus && (
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Admin')}
-          >
-            <Ionicons name="settings" size={24} color={COLORS.primary} />
-            <Text style={styles.menuItemText}>{t('profile.adminPanel')}</Text>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+        <View style={styles.identity}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+            {user?.email ? <Text style={styles.email} numberOfLines={1}>{user.email}</Text> : null}
+          </View>
         </View>
-      )}
+        <View style={styles.cardBottom}>
+          <Text style={styles.cardFooterText}>BDE AIVANCITY · {new Date().getFullYear()}</Text>
+          <Sticker
+            label={adminStatus ? t('profile.administrator') : t('profile.member')}
+            icon={adminStatus ? 'shield-checkmark' : 'sparkles'}
+            color={adminStatus ? PALETTE.tangerine : PALETTE.lime}
+            rotate={-3}
+            small
+          />
+        </View>
+      </PopCard>
 
-      <View style={styles.section}>
-        <PressableScale
-          style={[styles.menuItem, styles.dangerItem]}
-          onPress={handleSignOut}
-        >
-          <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
-          <Text style={[styles.menuItemText, styles.dangerText]}>
-            {t('auth.logout')}
+      <SectionTitle title={t('profile.settings')} />
+
+      <PopPressable
+        onPress={() => setLanguageModalVisible(true)}
+        containerStyle={styles.rowSpacing}
+        style={styles.row}
+      >
+        <View style={[styles.rowIcon, { backgroundColor: PALETTE.periwinkle }]}>
+          <Ionicons name="language" size={20} color={PALETTE.ink} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>{t('profile.language')}</Text>
+          <Text style={styles.rowValue}>
+            {getCurrentLanguage().flag} {getCurrentLanguage().name}
           </Text>
-        </PressableScale>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={PALETTE.ink} />
+      </PopPressable>
 
-        <PressableScale
-          style={[styles.menuItem, styles.deleteItem]}
-          onPress={openDeleteModal}
-        >
-          <Ionicons name="trash-outline" size={24} color={COLORS.error} />
-          <Text style={[styles.menuItemText, styles.deleteText]}>
-            {t('profile.deleteAccount')}
+      <PopCard containerStyle={styles.rowSpacing} style={styles.row}>
+        <View style={[styles.rowIcon, { backgroundColor: PALETTE.mint }]}>
+          <Ionicons name="mail" size={20} color={PALETTE.ink} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>{t('auth.email')}</Text>
+          <Text style={styles.rowValue} numberOfLines={1}>
+            {user?.email || t('profile.notSpecified')}
           </Text>
-        </PressableScale>
+        </View>
+      </PopCard>
+
+      <PopButton
+        title={t('auth.logout')}
+        icon="log-out-outline"
+        variant="light"
+        onPress={handleSignOut}
+        containerStyle={{ marginTop: 10 }}
+      />
+
+      <View style={styles.dangerZone}>
+        <Text style={styles.dangerTitle}>{t('profile.dangerZone')}</Text>
+        <Pressable onPress={openDeleteModal} hitSlop={8} style={styles.deleteLink} accessibilityRole="button">
+          <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+          <Text style={styles.deleteLinkText}>{t('profile.deleteAccount')}</Text>
+        </Pressable>
       </View>
 
       <View style={styles.footer}>
+        <Wordmark size={14} />
         <Text style={styles.footerText}>{t('profile.appVersion')}</Text>
-        <Text style={styles.footerSubText}>{t('profile.appMayContainBugs')}</Text>
       </View>
 
       {/* Modal de sélection de langue */}
@@ -345,7 +335,7 @@ export default function ProfileScreen({ navigation }) {
                   {lang.name}
                 </Text>
                 {language === lang.code && (
-                  <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                  <Ionicons name="checkmark-circle" size={24} color={PALETTE.ink} />
                 )}
               </TouchableOpacity>
             ))}
@@ -402,7 +392,7 @@ export default function ProfileScreen({ navigation }) {
                   disabled={deleteLoading}
                 >
                   {deleteLoading ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={PALETTE.ink} />
                   ) : (
                     <Text style={styles.deleteButtonText}>{t('profile.verify')}</Text>
                   )}
@@ -466,19 +456,19 @@ export default function ProfileScreen({ navigation }) {
                     <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
 
-                  <PressableScale
+                  <Pressable
                     style={[styles.deleteButton, styles.finalDeleteButton]}
                     onPress={deleteAccount}
                     disabled={deleteLoading}
                   >
                     {deleteLoading ? (
-                      <ActivityIndicator color="#fff" />
+                      <ActivityIndicator color={PALETTE.ink} />
                     ) : (
                       <Text style={styles.deleteButtonText}>
                         {t('profile.deleteAccountFinal')}
                       </Text>
                     )}
-                  </PressableScale>
+                  </Pressable>
                 </View>
               </>
             )}
@@ -494,137 +484,145 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
-    backgroundColor: COLORS.surface,
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  scrollContent: {
+    padding: 16,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
-  avatarContainer: {
-    marginBottom: 16,
-    ...SHADOWS.neon,
+  memberCard: {
+    padding: 18,
+    borderColor: PALETTE.ink,
+  },
+  stripes: {
+    position: 'absolute',
+    top: -30,
+    right: 34,
+    flexDirection: 'row',
+    gap: 8,
+    transform: [{ rotate: '24deg' }],
+  },
+  stripe: {
+    width: 12,
+    height: 220,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  identity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 22,
+    gap: 14,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: STROKE,
+    borderColor: PALETTE.paper,
+    backgroundColor: PALETTE.bubblegum,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: FONTS.display,
+    fontSize: 30,
+    lineHeight: 38,
+    color: PALETTE.ink,
   },
   name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
+    fontFamily: FONTS.display,
+    fontSize: 21,
+    lineHeight: 28,
+    color: PALETTE.paper,
   },
   email: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-  },
-  adminBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(124, 92, 255, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  adminBadgeText: {
-    color: COLORS.primary,
+    fontFamily: FONTS.bodyMedium,
     fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
+    color: PALETTE.paper,
+    opacity: 0.8,
   },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  infoCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  infoRow: {
+  cardBottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
+    justifyContent: 'space-between',
+    marginTop: 22,
   },
-  infoRowClickable: {
-    borderBottomWidth: 0,
+  cardFooterText: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 1,
+    color: PALETTE.paper,
   },
-  infoContent: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 16,
-    color: COLORS.text,
-    fontWeight: '500',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: 20,
-    borderRadius: 16,
+  rowSpacing: {
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
   },
-  menuItemText: {
-    flex: 1,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  rowIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.inkSoft,
+  },
+  rowValue: {
+    fontFamily: FONTS.bodyBold,
     fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginLeft: 16,
+    color: PALETTE.ink,
   },
-  dangerItem: {
-    borderColor: 'rgba(255, 68, 68, 0.3)',
-    backgroundColor: 'rgba(255, 68, 68, 0.05)',
+  dangerZone: {
+    marginTop: 30,
+    paddingTop: 14,
+    borderTopWidth: 2,
+    borderTopColor: COLORS.surfaceLight,
   },
-  dangerText: {
+  dangerTitle: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PALETTE.inkSoft,
+    marginBottom: 8,
+  },
+  deleteLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+  },
+  deleteLinkText: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: 15,
     color: COLORS.error,
-  },
-  deleteItem: {
-    borderColor: `${COLORS.error}80`,
-    backgroundColor: `${COLORS.error}1A`,
-  },
-  deleteText: {
-    color: COLORS.error,
+    marginLeft: 6,
+    textDecorationLine: 'underline',
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingTop: 30,
   },
   footerText: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    marginTop: 2,
   },
-  footerSubText: {
-    fontSize: 10,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    opacity: 0.7,
-  },
-  // Modal styles
+  // Modales
   modalContainer: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -634,35 +632,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    backgroundColor: SECTION_COLORS.Profile,
+    borderBottomWidth: STROKE,
+    borderBottomColor: PALETTE.ink,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    fontFamily: FONTS.display,
+    fontSize: 20,
+    color: PALETTE.ink,
   },
   modalContent: {
     flex: 1,
     padding: 20,
   },
   warningBox: {
-    backgroundColor: `${COLORS.error}1A`,
-    borderRadius: 16,
+    backgroundColor: '#FFE3DD',
+    borderRadius: 18,
     padding: 20,
     alignItems: 'center',
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: `${COLORS.error}4D`,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   finalWarningBox: {
-    backgroundColor: `${COLORS.error}33`,
-    borderColor: COLORS.error,
+    backgroundColor: '#FFC9BF',
   },
   warningTitle: {
+    fontFamily: FONTS.display,
     fontSize: 20,
-    fontWeight: 'bold',
     color: COLORS.error,
     marginTop: 12,
     marginBottom: 8,
@@ -681,12 +678,12 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     fontSize: 16,
     color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
     marginBottom: 12,
   },
   errorText: {
@@ -704,48 +701,51 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
     minWidth: 120,
   },
   cancelButtonText: {
+    fontFamily: FONTS.varsity,
+    fontSize: 18,
+    textTransform: 'uppercase',
     color: COLORS.text,
-    fontSize: 16,
-    fontWeight: '600',
   },
   deleteButton: {
-    backgroundColor: COLORS.error,
+    backgroundColor: PALETTE.cherry,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     alignSelf: 'center',
     minWidth: 150,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   finalDeleteButton: {
-    backgroundColor: COLORS.error,
+    backgroundColor: PALETTE.cherry,
   },
   deleteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: FONTS.varsity,
+    fontSize: 18,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
   },
-  // Language selector styles
+  // Sélecteur de langue
   languageOption: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
   },
   languageOptionActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(124, 92, 255, 0.1)',
+    backgroundColor: PALETTE.sun,
   },
   languageFlag: {
     fontSize: 28,
@@ -753,12 +753,11 @@ const styles = StyleSheet.create({
   },
   languageName: {
     flex: 1,
-    fontSize: 18,
+    fontFamily: FONTS.display,
+    fontSize: 17,
     color: COLORS.text,
-    fontWeight: '500',
   },
   languageNameActive: {
-    color: COLORS.primary,
-    fontWeight: '600',
+    color: COLORS.text,
   },
 });
