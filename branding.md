@@ -55,6 +55,22 @@ Le logotype est **typographique** : le mot `NØVYX` composé en **Dela Gothic On
 
 Le logotype est presque toujours accompagné de la pastille **BDE AIVANCITY** en pervenche (`#8A7DFF`), inclinée à −4°. Ce pervenche fait écho au texte « BDE AIVANCITY » de l'écusson du BDE.
 
+### Icône d'application & splash
+
+La marque « système » est un **monogramme** : le **Ø** en Dela Gothic One (encre, penché de 6°) posé sur l'**étoile explosion** à 12 branches (`sun`, contour encre à joints arrondis, ombre dure décalée vers le bas à droite), la même que le composant `Burst`.
+
+| Fichier | Format | Contenu |
+|---|---|---|
+| `assets/icon.png` | 1024 × 1024, sans transparence | Monogramme sur fond `tangerine` plein (iOS et Android) |
+| `assets/adaptive-icon.png` | 1024 × 1024, transparent | Premier plan Android : monogramme réduit pour tenir dans la zone sûre (cercle de 66/108) ; fond `#FF5A1F` via `adaptiveIcon.backgroundColor` |
+| `assets/adaptive-icon-monochrome.png` | 1024 × 1024, transparent | Silhouette (étoile pleine, Ø évidé) pour les icônes thématiques d'Android 13+ |
+| `assets/splash.png` | 1024 × 1024, transparent | Monogramme seul, affiché à 200 dp sur fond papier `#FFF4E6` (plugin `expo-splash-screen`). Pas de logotype : sur Android 12+, l'image du splash est rognée en cercle |
+| `assets/notification-icon.png` | 96 × 96, blanc sur transparent | Petite icône des notifications Android ; couleur d'accent `#FF5A1F` |
+| `assets/favicon.png` | 48 × 48 | Favicon web |
+| `play-store/icon-512.png` | 512 × 512 | Icône haute résolution de la fiche Play Store |
+
+Tous ces fichiers sont générés par `python scripts/generate_brand_assets.py` (Python 3 + Pillow, police lue dans `node_modules`). Pour changer la marque système, modifier le script puis le relancer, sans retoucher les PNG à la main.
+
 ### Écusson du BDE
 
 L'écusson au robot doré est le logo **de l'association**, pas celui de l'app. Il n'est pas utilisé comme icône d'application. Il a inspiré deux choses : le pervenche de la pastille « BDE AIVANCITY », et l'univers varsity (écusson, blason, esprit « équipe »).
@@ -568,4 +584,4 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 
 **Identité système** (`app.json`) : `name` = `NØVYX` ; `slug` (`bde-app`) et identifiant Android / iOS (`com.bde.app`) inchangés, pour ne pas casser EAS ni la fiche Play Store.
 
-**Chantier restant** : l'icône d'application et le splash screen (`assets/icon.png`, `assets/adaptive-icon.png`, `assets/splash.png`) sont encore les anciens visuels ; ils sont à redessiner dans ce style.
+**Visuels système** (icône, icône adaptative et monochrome, splash, favicon, icône de notification, icône Play Store) : générés par `scripts/generate_brand_assets.py`, voir §1.

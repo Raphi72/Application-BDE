@@ -26,7 +26,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - Procédure de migration suivie pour 54 → 57 : `npx expo install expo@^57.0.9`, `npx expo install --fix`, `npx expo-doctor`, puis lecture des notes de version de chaque SDK intermédiaire. Consigne du skill officiel `expo-upgrade` : depuis le SDK 55 ou avant, **sauter le 56** (régression mémoire Hermes V1), avec `expo@57.0.9` minimum.
 - Expo Go 57 affiche un bouton flottant « Tools » en haut à droite, par-dessus le bouton profil. Il n'existe que dans Expo Go ; on le masque dans le menu dev (option « Tools button »).
 - Le splash est configuré via le plugin `expo-splash-screen` : la clé `splash` à la racine d'`app.json` n'est plus acceptée depuis le SDK 55.
-- `expo-doctor` signale encore que `assets/icon.png` et `assets/adaptive-icon.png` ne sont pas carrées (1376×768) : à corriger avec la nouvelle icône.
+- Expo Go met en cache l'icône du projet (même URL) : après un changement d'icône, vider ses données (`adb shell pm clear host.exp.exponent` sur l'émulateur) pour voir la nouvelle. Le splash `expo-splash-screen` ne s'affiche que dans les vraies builds, pas dans Expo Go.
 
 ## Architecture
 
@@ -44,6 +44,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 - **Référence complète : `branding.md`**. À mettre à jour si un token ou un composant change.
 - Tokens : `src/constants/theme.js` (`PALETTE`, `COLORS`, `SECTION_COLORS`, `FONTS`, `STROKE`, `HARD_SHADOW`, `accentFor`).
+- Visuels système (icône, icône adaptative et monochrome, splash, favicon, icône de notification, icône Play Store 512) : générés par `python scripts/generate_brand_assets.py`. Ne pas retoucher les PNG à la main.
 - Kit UI : `src/components/ui/`, qui contient `AppText`, `Pop` (`PopCard` / `PopPressable` / `PopButton` / `RoundButton`), `Deco` (`Wordmark`, `Sticker`, `Burst`, `Zigzag`, `Segmented`, `SectionTitle`, `EmptyState`), `Headers` (`ScreenHeader`, `DetailHeader`, `stackScreenOptions`) et `Auth`.
 - Règles à respecter :
   - importer `Text` / `TextInput` depuis `components/ui/AppText`, jamais depuis `react-native` ;
@@ -71,8 +72,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 - `@expo/vector-icons` est déprécié depuis le SDK 56 (au profit des paquets `@react-native-vector-icons/*`) : il fonctionne encore, migration à prévoir.
 - React Navigation reste en v6 : fonctionne en SDK 57, mais la v7 est la version maintenue.
-- Icône d'application et splash screen : encore les anciens visuels, à redessiner dans le style NØVYX.
-- Captures de la fiche Play Store à refaire (elles montrent l'ancien design).
+- Captures et bannière (`play-store/feature-graphic.png`) de la fiche Play Store à refaire : elles montrent l'ancien design.
 - `play-store/FICHE_PLAY_STORE.md` contient les identifiants du compte testeur (administrateur) dans un dépôt public : mot de passe à changer, identifiants à sortir du dépôt.
 - `GalleryScreen` est importé mais jamais routé (code mort).
 - Web uniquement : un drag souris qui commence et finit sur une carte l'ouvre au relâchement (react-native-web déclenche `onPress` sur `click`). Problème préexistant, le mobile n'est pas concerné.

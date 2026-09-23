@@ -22,7 +22,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0E0E13"
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#FF5A1F"
       },
       "package": "com.bde.app",
       "versionCode": 1,
@@ -33,12 +34,15 @@
         "NOTIFICATIONS"
       ]
     },
-    "web": {},
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       [
         "expo-notifications",
         {
-          "color": "#ffffff"
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF5A1F"
         }
       ],
       "expo-font",
@@ -47,8 +51,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0E0E13"
+          "backgroundColor": "#FFF4E6"
         }
       ]
     ],

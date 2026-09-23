@@ -101,15 +101,15 @@ Optionnel : `04-actualites-play.png` (écran vide pour le moment — à recaptur
 
 | Asset | Taille | Fichier source actuel |
 |--------|--------|------------------------|
-| Icône haute résolution | 512×512 | dériver de `assets/icon.png` |
-| Bannière Feature Graphic | 1024×500 | `play-store/feature-graphic.png` ✅ |
+| Icône haute résolution | 512×512 | `play-store/icon-512.png` ✅ (généré par `scripts/generate_brand_assets.py`) |
+| Bannière Feature Graphic | 1024×500 | `play-store/feature-graphic.png` ⚠️ ancien design, à refaire |
 | Icône adaptive | déjà dans `assets/adaptive-icon.png` | OK pour le build |
 
 ## Checklist rapide Play Console
 
 - [ ] Nom + descriptions collés  
 - [ ] 4+ screenshots uploadés  
-- [ ] Icône 512×512  
+- [x] Icône 512×512 (`play-store/icon-512.png`)
 - [ ] Feature graphic 1024×500  
 - [ ] URL politique de confidentialité en ligne  
 - [ ] Compte testeur renseigné  
