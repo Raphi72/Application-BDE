@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,20 +8,39 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  Pressable,
   useWindowDimensions,
 } from 'react-native';
-import Text from '../components/ui/AppText';
+import Text, { TextInput } from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ClubCard, { ClubPatch } from '../components/ClubCard';
-import { supabase } from '../config/supabase';
+import MyClubRow from '../components/MyClubRow';
+import { RoleSticker, formStyles } from '../components/clubUi';
 import { COLORS, FONTS, PALETTE, SECTION_COLORS, STROKE } from '../constants/theme';
 import ClubProposalScreen from './ClubProposalScreen';
+import ClubSpaceScreen from './club/ClubSpaceScreen';
+import ClubSettingsScreen from './club/ClubSettingsScreen';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useMyClubs } from '../hooks/useMyClubs';
 import { plural } from '../utils/plural';
+import { confirmAction, showMessage } from '../utils/dialogs';
+import {
+  MAX_JOIN_MESSAGE,
+  cancelJoinRequest,
+  clubErrorMessage,
+  fetchClub,
+  fetchClubs,
+  leaveClub,
+  parseClubImages,
+  requestJoin,
+} from '../services/clubService';
 import { PopButton, PopCard, PopPressable, RoundButton } from '../components/ui/Pop';
-import { EmptyState, Sticker, Zigzag } from '../components/ui/Deco';
+import { EmptyState, SectionTitle, Sticker, Zigzag } from '../components/ui/Deco';
+import { Sheet } from '../components/ui/Sheet';
 import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 
 const Stack = createNativeStackNavigator();
@@ -193,8 +212,8 @@ const charteStyles = StyleSheet.create({
 });
 
 /**
- * Écran de liste des clubs : les clubs d'abord, puis une carte d'appel à
- * proposer son club (avec accès à la charte).
+ * Écran de liste des clubs : mes clubs (accès direct à leur espace), puis
+ * tous les clubs, puis une carte d'appel à proposer son club (avec la charte).
  */
 function ClubsListScreen({ navigation }) {
   const { t, language } = useLanguage();
@@ -202,47 +221,48 @@ function ClubsListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCharteModal, setShowCharteModal] = useState(false);
+  const { myClubs, pendingForPresident, refresh: refreshMine } = useMyClubs();
 
-  useEffect(() => {
-    loadClubs();
-  }, []);
-
-  const loadClubs = async (isRefresh = false) => {
+  const loadClubs = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('clubs')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      const formattedClubs = (data || []).map(item => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        contact: item.contact,
-        president: item.president,
-        category: item.category || 'Autre',
-        image: item.image,
-        members: item.members_count || 0,
-      }));
-
-      setClubs(formattedClubs);
+      setClubs(await fetchClubs());
     } catch (error) {
       console.error('Erreur lors du chargement des clubs:', error);
     } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  // Rechargé au retour sur la liste : l'effectif change quand on rejoint ou
+  // quitte un club.
+  useFocusEffect(
+    useCallback(() => {
+      loadClubs();
+    }, [loadClubs])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadClubs(true);
+    loadClubs();
+    refreshMine();
   };
+
+  const renderHeader = () =>
+    myClubs.length > 0 ? (
+      <View>
+        <SectionTitle title={t('clubs.myClubs')} count={myClubs.length} color={COLOR} />
+        {myClubs.map((club) => (
+          <MyClubRow
+            key={club.id}
+            club={club}
+            pendingCount={pendingForPresident[club.id]}
+            onPress={() => navigation.navigate('ClubSpace', { clubId: club.id })}
+          />
+        ))}
+        <SectionTitle title={t('clubs.allClubs')} style={{ marginTop: 12 }} />
+      </View>
+    ) : null;
 
   const renderFooter = () => (
     <PopCard color={PALETTE.sun} radius={22} containerStyle={{ marginTop: 6 }} style={styles.pitch}>
@@ -291,6 +311,7 @@ function ClubsListScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           refreshing={refreshing}
           onRefresh={handleRefresh}
+          ListHeaderComponent={renderHeader}
           ListEmptyComponent={
             <EmptyState emoji="🏆" title={t('clubs.emptyTitle')} message={t('clubs.emptyMessage')} color={COLOR} />
           }
@@ -304,22 +325,86 @@ function ClubsListScreen({ navigation }) {
 }
 
 /**
- * Écran de détails d'un club
+ * Demande d'adhésion : petit mot facultatif pour le président, qui verra le
+ * nom, l'email et le message.
  */
-function ClubDetailsScreen({ route }) {
+function JoinClubSheet({ club, visible, onClose, onSent }) {
   const { t } = useLanguage();
-  const { club } = route.params;
-  const { width } = useWindowDimensions();
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
-  const images = (() => {
-    if (!club.image) return [];
+  const submit = async () => {
+    setSending(true);
     try {
-      const parsed = JSON.parse(club.image);
-      return Array.isArray(parsed) ? parsed : [club.image];
-    } catch {
-      return [club.image];
+      await requestJoin(club.id, message);
+      setMessage('');
+      onSent();
+      showMessage(t('clubs.requestSent'), t('clubs.requestSentMessage', { club: club.name }));
+    } catch (error) {
+      showMessage(t('common.error'), clubErrorMessage(error, t));
+    } finally {
+      setSending(false);
     }
-  })();
+  };
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title={t('clubs.joinTitle', { club: club.name })} closeLabel={t('common.close')}>
+      <Text style={formStyles.label}>{t('clubs.joinMessageLabel')}</Text>
+      <TextInput
+        value={message}
+        onChangeText={setMessage}
+        placeholder={t('clubs.joinMessagePlaceholder')}
+        placeholderTextColor={PALETTE.inkSoft}
+        multiline
+        maxLength={MAX_JOIN_MESSAGE}
+        style={[formStyles.input, formStyles.textArea]}
+      />
+      <Text style={formStyles.counter}>
+        {message.length} / {MAX_JOIN_MESSAGE}
+      </Text>
+      <View style={styles.privacyRow}>
+        <Ionicons name="eye-outline" size={18} color={PALETTE.inkSoft} />
+        <Text style={styles.privacyText}>{t('clubs.joinPrivacy')}</Text>
+      </View>
+      <PopButton title={t('clubs.sendRequest')} icon="send" onPress={submit} loading={sending} />
+    </Sheet>
+  );
+}
+
+/**
+ * Écran de détails d'un club. La barre du bas dépend de la relation avec le
+ * club : rejoindre, demande en attente (annulable), accès à l'espace du club
+ * pour les membres (et les admins), recrutement fermé ou club complet.
+ */
+function ClubDetailsScreen({ route, navigation }) {
+  const { t } = useLanguage();
+  const { isAdmin } = useAuth();
+  const { width } = useWindowDimensions();
+  const [club, setClub] = useState(route.params.club);
+  const [adminView, setAdminView] = useState(false);
+  const [joinVisible, setJoinVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [barHeight, setBarHeight] = useState(0);
+  const { myClubs, pendingRequests, loaded, refresh } = useMyClubs();
+
+  useEffect(() => {
+    isAdmin().then(setAdminView);
+    // isAdmin est recréé à chaque rendu du contexte : lu une seule fois.
+  }, []);
+
+  // Effectif et recrutement à jour à chaque passage sur l'écran.
+  const refreshClub = useCallback(() => {
+    fetchClub(route.params.club.id)
+      .then((fresh) => fresh && setClub(fresh))
+      .catch((error) => console.warn('Club non rechargé :', error?.message));
+  }, [route.params.club.id]);
+
+  useFocusEffect(refreshClub);
+
+  const membership = myClubs.find((c) => c.id === club.id);
+  const pending = pendingRequests[club.id];
+  const isFull = club.maxCapacity != null && club.members >= club.maxCapacity;
+  const images = parseClubImages(club.image);
 
   const handleContactPresident = () => {
     const subject = encodeURIComponent(`Contact - Club ${club.name}`);
@@ -333,9 +418,89 @@ Cordialement`);
     Linking.openURL(`mailto:${club.contact}?subject=${subject}&body=${body}`);
   };
 
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      await action();
+      await refresh();
+      refreshClub();
+    } catch (error) {
+      showMessage(t('common.error'), clubErrorMessage(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    const ok = await confirmAction({
+      title: t('clubs.cancelRequest'),
+      message: t('clubs.cancelRequestConfirm', { club: club.name }),
+      confirmLabel: t('common.yes'),
+      cancelLabel: t('common.no'),
+    });
+    if (ok) run(() => cancelJoinRequest(pending.id));
+  };
+
+  const handleLeave = async () => {
+    const ok = await confirmAction({
+      title: t('clubs.leaveClub'),
+      message: t('clubs.leaveConfirm', { club: club.name }),
+      confirmLabel: t('clubs.leaveClub'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (ok) run(() => leaveClub(club.id));
+  };
+
+  const openSpace = () => navigation.navigate('ClubSpace', { clubId: club.id });
+
+  const renderAction = () => {
+    if (!loaded) return <PopButton title={t('common.loading')} loading variant="light" />;
+    if (membership) {
+      return (
+        <PopButton
+          title={membership.isPresident ? t('clubs.manageClub') : t('clubs.openSpace')}
+          icon={membership.isPresident ? 'star' : 'people'}
+          variant={membership.isPresident ? 'dark' : 'primary'}
+          onPress={openSpace}
+        />
+      );
+    }
+    if (pending) {
+      return (
+        <>
+          <View style={styles.pendingRow}>
+            <Sticker label={t('clubs.requestPending')} icon="time" color={PALETTE.sun} rotate={-2} small />
+            <Text style={styles.pendingHint} numberOfLines={2}>
+              {t('clubs.requestPendingHint')}
+            </Text>
+          </View>
+          <PopButton
+            title={t('clubs.cancelRequest')}
+            icon="close"
+            variant="light"
+            compact
+            onPress={handleCancelRequest}
+            loading={busy}
+          />
+        </>
+      );
+    }
+    if (!club.recruiting || isFull) {
+      return (
+        <PopButton
+          title={isFull ? t('clubs.clubFull') : t('clubs.recruitingClosed')}
+          icon={isFull ? 'people' : 'lock-closed'}
+          disabled
+        />
+      );
+    }
+    return <PopButton title={t('clubs.joinClub')} icon="person-add" onPress={() => setJoinVisible(true)} />;
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: club.contact ? 110 : 30 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: barHeight + 24 }}>
         {images.length > 0 ? (
           <View style={styles.hero}>
             <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
@@ -351,14 +516,20 @@ Cordialement`);
             <ClubPatch club={club} size={96} rotate={-8} />
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{club.name}</Text>
-              <Sticker label={club.category} color={COLOR} rotate={-3} />
+              <View style={styles.stickers}>
+                <Sticker label={club.category} color={COLOR} rotate={-3} />
+                {membership ? <RoleSticker member={membership} t={t} rotate={2} /> : null}
+              </View>
             </View>
           </View>
 
           <View style={styles.statsRow}>
             <PopCard containerStyle={{ flex: 1 }} color={PALETTE.periwinkle} style={styles.statCard}>
               <Text style={styles.statNumber}>{club.members}</Text>
-              <Text style={styles.statLabel}>{t('clubs.members')}</Text>
+              <Text style={styles.statLabel}>
+                {t('clubs.members')}
+                {club.maxCapacity ? ` ${t('clubs.capacityOf', { max: club.maxCapacity })}` : ''}
+              </Text>
             </PopCard>
             {club.president ? (
               <PopCard containerStyle={{ flex: 1.4 }} color={PALETTE.bubblegum} style={styles.statCard}>
@@ -385,14 +556,40 @@ Cordialement`);
               <Text style={styles.description}>{club.description}</Text>
             </>
           ) : null}
+
+          {adminView && !membership ? (
+            <PopButton
+              title={t('clubs.openSpace')}
+              icon="shield-checkmark"
+              variant="light"
+              compact
+              onPress={openSpace}
+              containerStyle={{ marginTop: 22 }}
+            />
+          ) : null}
+
+          {membership && !membership.isPresident ? (
+            <Pressable onPress={handleLeave} disabled={busy} hitSlop={8} style={styles.leaveLink} accessibilityRole="button">
+              <Ionicons name="exit-outline" size={18} color={COLORS.error} />
+              <Text style={styles.leaveText}>{t('clubs.leaveClub')}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
 
-      {club.contact ? (
-        <View style={styles.actionBar}>
-          <PopButton title={t('clubs.contactPresident')} icon="mail" onPress={handleContactPresident} />
-        </View>
-      ) : null}
+      <View style={styles.actionBar} onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}>
+        {renderAction()}
+      </View>
+
+      <JoinClubSheet
+        club={club}
+        visible={joinVisible}
+        onClose={() => setJoinVisible(false)}
+        onSent={() => {
+          setJoinVisible(false);
+          refresh();
+        }}
+      />
     </View>
   );
 }
@@ -419,6 +616,16 @@ export default function ClubsScreen() {
         name="ClubProposal"
         component={ClubProposalScreen}
         options={{ title: t('clubs.proposeClub') }}
+      />
+      <Stack.Screen
+        name="ClubSpace"
+        component={ClubSpaceScreen}
+        options={{ title: t('clubSpace.title') }}
+      />
+      <Stack.Screen
+        name="ClubSettings"
+        component={ClubSettingsScreen}
+        options={{ title: t('clubSpace.settingsTitle') }}
       />
     </Stack.Navigator>
   );
@@ -576,5 +783,50 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.paper,
     borderTopWidth: STROKE,
     borderTopColor: PALETTE.ink,
+  },
+  stickers: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  pendingHint: {
+    flex: 1,
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: 13,
+    color: PALETTE.inkSoft,
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  privacyText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: PALETTE.inkSoft,
+  },
+  leaveLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 26,
+    paddingVertical: 6,
+  },
+  leaveText: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: 15,
+    color: COLORS.error,
+    textDecorationLine: 'underline',
   },
 });

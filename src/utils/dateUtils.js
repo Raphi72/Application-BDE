@@ -73,6 +73,20 @@ export const formatTime = (timeString, locale = 'fr') => {
 };
 
 /**
+ * Date courte d'un horodatage : "12 septembre" (année ajoutée si ce n'est
+ * pas l'année en cours).
+ * @param {string} value - Date ou horodatage ISO
+ * @param {string} locale - 'fr' ou 'en'
+ */
+export const formatShortDate = (value, locale = 'fr') => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const loc = locale === 'en' ? 'en-GB' : 'fr-FR';
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(loc, { day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
+};
+
+/**
  * Calcule le nombre de jours jusqu'à une date
  * @param {string} dateString - Date au format ISO
  * @returns {number} Nombre de jours (négatif si passé)
