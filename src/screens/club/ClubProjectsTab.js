@@ -28,11 +28,9 @@ const STATUS_COLORS = {
 };
 
 /**
- * Projets et idées du club. Tout membre propose une idée ; le bureau crée des
- * projets, change leur statut et modifie tout. L'auteur d'une idée peut la
- * retoucher ou la retirer tant qu'elle n'a pas été lancée.
+ * Projets et idées du club. Le bureau crée et gère ; les membres consultent.
  */
-export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreChange }) {
+export default function ClubProjectsTab({ clubId, perms, header, onCoreChange }) {
   const { t, language } = useLanguage();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,32 +51,37 @@ export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreC
   }, [clubId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
-
-  const canEdit = (project) =>
-    perms.canManageContent || (project.author_id === userId && project.status === 'idea');
 
   const sections = SECTION_ORDER.map((status) => ({
     status,
     data: projects.filter((p) => p.status === status),
   })).filter((section) => section.data.length > 0);
+  let emptyMessage = null;
+  if (!loadError) {
+    const key = perms.canManageContent
+      ? 'clubSpace.projects.emptyManager'
+      : 'clubSpace.projects.emptyMember';
+    emptyMessage = t(key);
+  }
 
   const listHeader = (
     <View>
       {header}
-      <PopButton
-        title={perms.canManageContent ? t('clubSpace.projects.newProject') : t('clubSpace.projects.newIdea')}
-        icon={perms.canManageContent ? 'add-circle' : 'bulb'}
-        variant={perms.canManageContent ? 'primary' : 'sun'}
-        onPress={() => setEditor({})}
-        containerStyle={{ marginBottom: 20 }}
-      />
+      {perms.canManageContent ? (
+        <PopButton
+          title={t('clubSpace.projects.newProject')}
+          icon="add-circle"
+          onPress={() => setEditor({})}
+          containerStyle={{ marginBottom: 20 }}
+        />
+      ) : null}
     </View>
   );
 
   const renderProject = ({ item }) => {
-    const editable = canEdit(item);
+    const editable = perms.canManageContent;
     return (
       <PopPressable
         onPress={editable ? () => setEditor({ project: item }) : undefined}
@@ -137,7 +140,7 @@ export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreC
             <EmptyState
               emoji="💡"
               title={loadError ? clubErrorMessage(loadError, t) : t('clubSpace.projects.emptyTitle')}
-              message={loadError ? null : t('clubSpace.projects.emptyMessage')}
+              message={emptyMessage}
               color={SECTION_COLORS.Clubs}
             />
           )
@@ -147,8 +150,8 @@ export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreC
         refreshing={refreshing}
         onRefresh={() => {
           setRefreshing(true);
-          load();
-          onCoreChange();
+          void load();
+          void onCoreChange();
         }}
       />
 
@@ -156,11 +159,10 @@ export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreC
         visible={editor !== null}
         project={editor?.project}
         clubId={clubId}
-        canChooseStatus={perms.canManageContent}
         onClose={() => setEditor(null)}
         onSaved={() => {
           setEditor(null);
-          load();
+          void load();
         }}
       />
     </>
@@ -168,10 +170,9 @@ export default function ClubProjectsTab({ clubId, perms, header, userId, onCoreC
 }
 
 /**
- * Création / modification d'un projet. Un simple membre ne choisit pas le
- * statut : ce qu'il propose est une idée.
+ * Création / modification d'un projet, réservée au bureau.
  */
-function ProjectSheet({ visible, project, clubId, canChooseStatus, onClose, onSaved }) {
+function ProjectSheet({ visible, project, clubId, onClose, onSaved }) {
   const { t } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -182,8 +183,8 @@ function ProjectSheet({ visible, project, clubId, canChooseStatus, onClose, onSa
     if (!visible) return;
     setTitle(project?.title ?? '');
     setDescription(project?.description ?? '');
-    setStatus(project?.status ?? (canChooseStatus ? 'in_progress' : 'idea'));
-  }, [visible, project, canChooseStatus]);
+    setStatus(project?.status ?? 'in_progress');
+  }, [visible, project]);
 
   const save = async () => {
     if (!title.trim()) {
@@ -192,7 +193,7 @@ function ProjectSheet({ visible, project, clubId, canChooseStatus, onClose, onSa
     }
     setSaving(true);
     try {
-      const fields = { title, description, status: canChooseStatus ? status : 'idea' };
+      const fields = { title, description, status };
       if (project) await updateProject(project.id, fields);
       else await createProject(clubId, fields);
       onSaved();
@@ -222,9 +223,7 @@ function ProjectSheet({ visible, project, clubId, canChooseStatus, onClose, onSa
 
   const sheetTitle = project
     ? t('clubSpace.projects.editTitle')
-    : canChooseStatus
-      ? t('clubSpace.projects.newProject')
-      : t('clubSpace.projects.newIdea');
+    : t('clubSpace.projects.newProject');
 
   return (
     <Sheet visible={visible} onClose={onClose} title={sheetTitle} closeLabel={t('common.close')}>
@@ -251,18 +250,14 @@ function ProjectSheet({ visible, project, clubId, canChooseStatus, onClose, onSa
           style={[formStyles.input, formStyles.textArea]}
         />
       </View>
-      {canChooseStatus ? (
-        <View style={formStyles.field}>
-          <Text style={formStyles.label}>{t('clubSpace.projects.statusLabel')}</Text>
-          <Segmented
-            options={PROJECT_STATUSES.map((key) => ({ key, label: t(`clubSpace.projects.statusOne.${key}`) }))}
-            value={status}
-            onChange={setStatus}
-          />
-        </View>
-      ) : (
-        <Text style={formStyles.hint}>{t('clubSpace.projects.ideaHint')}</Text>
-      )}
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>{t('clubSpace.projects.statusLabel')}</Text>
+        <Segmented
+          options={PROJECT_STATUSES.map((key) => ({ key, label: t(`clubSpace.projects.statusOne.${key}`) }))}
+          value={status}
+          onChange={setStatus}
+        />
+      </View>
 
       <PopButton
         title={t('common.save')}

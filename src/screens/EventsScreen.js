@@ -7,10 +7,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image,
   Linking,
   RefreshControl,
-  useWindowDimensions,
 } from 'react-native';
 import Text from '../components/ui/AppText';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
@@ -25,6 +23,7 @@ import { plural } from '../utils/plural';
 import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
 import { Burst, EmptyState, Segmented, SectionTitle, Sticker } from '../components/ui/Deco';
 import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
+import SwipeablePhotoGallery from '../components/SwipeablePhotoGallery';
 
 const Stack = createNativeStackNavigator();
 const COLOR = SECTION_COLORS.Events;
@@ -293,7 +292,6 @@ function EventsListScreen({ navigation }) {
  */
 function EventDetailsScreen({ route }) {
   const { t, language } = useLanguage();
-  const { width } = useWindowDimensions();
   const { event } = route.params;
   const [isRegistered, setIsRegistered] = useState(event.registered);
   // État local pour que le compteur se mette à jour immédiatement
@@ -391,11 +389,13 @@ function EventDetailsScreen({ route }) {
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.hero}>
           {images.length > 0 ? (
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-              {images.map((img, index) => (
-                <Image key={index} source={{ uri: img }} style={[styles.heroImage, { width }]} />
-              ))}
-            </ScrollView>
+            <SwipeablePhotoGallery
+              images={images}
+              openPhotoLabel={(index, count) =>
+                t('events.openPhoto', { index, count })
+              }
+              closeLabel={t('events.closePhotos')}
+            />
           ) : (
             <PosterFallback color={accent} emoji={posterEmoji(event.title)} height={240} />
           )}
@@ -539,11 +539,6 @@ const styles = StyleSheet.create({
   hero: {
     borderBottomWidth: 2.5,
     borderBottomColor: PALETTE.ink,
-  },
-  heroImage: {
-    height: 260,
-    resizeMode: 'cover',
-    backgroundColor: PALETTE.paperDeep,
   },
   heroBurst: {
     position: 'absolute',

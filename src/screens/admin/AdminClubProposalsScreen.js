@@ -11,6 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { dateParts } from '../../utils/dateUtils';
 import { confirmAction, showMessage } from '../../utils/dialogs';
 import { AdminFormModal, ChipSelect, FormField, FormSection } from './AdminKit';
+import { useAdminBadge } from '../../navigation/AdminBadge';
 
 // Couleur de l'entrée « Propositions » du menu admin
 const COLOR = PALETTE.mint;
@@ -72,6 +73,7 @@ function InfoField({ label, children, hint }) {
  */
 export default function AdminClubProposalsScreen() {
   const { t, language } = useLanguage();
+  const { refreshPendingClubCount } = useAdminBadge();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true); // premier chargement uniquement
   const [refreshing, setRefreshing] = useState(false); // pull-to-refresh manuel
@@ -163,6 +165,8 @@ export default function AdminClubProposalsScreen() {
 
       if (updateError) throw updateError;
 
+      void refreshPendingClubCount();
+
       // Envoyer une notification à tous les utilisateurs
       await notificationService.notifyNewClub(selectedProposal.club_name);
 
@@ -206,6 +210,7 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
+      void refreshPendingClubCount();
       showMessage(t('clubs.proposalRejected'), t('admin.rejectedInfo'));
       setModalVisible(false);
       loadProposals();
@@ -232,6 +237,7 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
+      void refreshPendingClubCount();
       showMessage(t('common.success'), t('admin.underReviewInfo'));
       setModalVisible(false);
       loadProposals();

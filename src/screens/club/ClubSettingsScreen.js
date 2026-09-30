@@ -25,6 +25,7 @@ import {
   buildMonthlyReport,
   clubErrorMessage,
   fetchClub,
+  fetchClubSessions,
   fetchMembers,
   fetchPosts,
   fetchProjects,
@@ -165,12 +166,21 @@ export default function ClubSettingsScreen({ route }) {
   const shareReport = async () => {
     setReporting(true);
     try {
-      const [members, projects, posts] = await Promise.all([
+      const [members, projects, posts, sessions] = await Promise.all([
         fetchMembers(clubId),
         fetchProjects(clubId),
         fetchPosts(clubId),
+        fetchClubSessions(clubId),
       ]);
-      const { subject, body } = buildMonthlyReport({ club, members, projects, posts, t, language });
+      const { subject, body } = buildMonthlyReport({
+        club,
+        members,
+        projects,
+        posts,
+        sessions,
+        t,
+        language,
+      });
       if (Platform.OS === 'web') {
         await Linking.openURL(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
       } else {

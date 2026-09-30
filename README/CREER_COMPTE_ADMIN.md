@@ -17,6 +17,10 @@
 6. Dans la colonne **`role`**, changez `user` en `admin`
 7. Cliquez sur **Save** (ou appuyez sur Entrée)
 
+Le Table Editor utilise un accès privilégié Supabase (`auth.uid()` est absent) :
+la protection contre l'auto-promotion depuis l'application ne bloque donc pas
+cette méthode.
+
 ### Étape 3 : Reconnectez-vous
 
 1. **Déconnectez-vous** de l'application
@@ -41,6 +45,9 @@ WHERE id = (
 ```
 
 3. **Déconnectez-vous** et **reconnectez-vous** dans l'application
+
+Le SQL Editor s'exécute lui aussi avec le rôle PostgreSQL privilégié et reste
+autorisé à modifier `profiles.role`.
 
 ---
 

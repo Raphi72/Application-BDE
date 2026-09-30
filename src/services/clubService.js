@@ -29,6 +29,8 @@ const RPC_ERROR_CODES = [
   'description_required',
   'capacity_too_low',
   'capacity_below_members',
+  'invalid_response',
+  'session_not_found',
 ];
 
 // Table, colonne, relation ou fonction absente : la migration
@@ -353,6 +355,66 @@ export async function deleteProject(projectId) {
 }
 
 // ---------------------------------------------------------------------------
+// Sessions du club
+// ---------------------------------------------------------------------------
+
+export async function fetchClubSessions(clubId) {
+  const { data, error } = await supabase
+    .from('club_sessions')
+    .select('*, responses:club_session_responses(user_id, response)')
+    .eq('club_id', clubId)
+    .order('session_date', { ascending: true })
+    .order('session_time', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createClubSession(clubId, fields) {
+  const { data, error } = await supabase
+    .from('club_sessions')
+    .insert({
+      club_id: clubId,
+      title: fields.title.trim(),
+      description: fields.description?.trim() || null,
+      session_date: fields.date,
+      session_time: fields.time,
+      location: fields.location.trim(),
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateClubSession(sessionId, fields) {
+  const { error } = await supabase
+    .from('club_sessions')
+    .update({
+      title: fields.title.trim(),
+      description: fields.description?.trim() || null,
+      session_date: fields.date,
+      session_time: fields.time,
+      location: fields.location.trim(),
+    })
+    .eq('id', sessionId);
+  if (error) throw error;
+}
+
+export async function deleteClubSession(sessionId) {
+  const { error } = await supabase.from('club_sessions').delete().eq('id', sessionId);
+  if (error) throw error;
+}
+
+export async function respondClubSession(sessionId, response) {
+  const { data, error } = await supabase.rpc('respond_club_session', {
+    p_session_id: sessionId,
+    p_response: response,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // Rapport mensuel (charte : effectif, liste des membres, activités du mois)
 // ---------------------------------------------------------------------------
 
@@ -360,7 +422,16 @@ export async function deleteProject(projectId) {
  * Prépare le rapport mensuel à envoyer au BDE, sous forme de texte.
  * @returns {{ subject: string, body: string }}
  */
-export function buildMonthlyReport({ club, members, projects, posts, t, language, now = new Date() }) {
+export function buildMonthlyReport({
+  club,
+  members,
+  projects,
+  posts,
+  sessions = [],
+  t,
+  language,
+  now = new Date(),
+}) {
   const locale = language === 'en' ? 'en-GB' : 'fr-FR';
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const thisMonth = (value) => value && new Date(value) >= monthStart;
@@ -400,6 +471,9 @@ export function buildMonthlyReport({ club, members, projects, posts, t, language
     '',
     t('clubSpace.report.ideas', { count: ideas.length }),
     t('clubSpace.report.posts', { count: posts.filter((p) => thisMonth(p.created_at)).length }),
+    t('clubSpace.report.sessions', {
+      count: sessions.filter((session) => thisMonth(session.session_date)).length,
+    }),
     '',
     t('clubSpace.report.footer'),
   ];

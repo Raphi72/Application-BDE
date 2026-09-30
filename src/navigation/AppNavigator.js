@@ -3,6 +3,7 @@ import {
   NavigationContainer,
   createNavigatorFactory,
   useNavigationBuilder,
+  useFocusEffect,
   TabRouter,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,6 +14,7 @@ import { useLanguage } from '../context/LanguageContext';
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   Dimensions,
   Platform,
   View,
@@ -23,6 +25,9 @@ import Text from '../components/ui/AppText';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import CustomBottomTabBar from './CustomBottomTabBar';
 import { ProfileNavContext } from './ProfileNav';
+import { AdminBadgeContext, useAdminBadge } from './AdminBadge';
+import { CategorySwipeContext } from './CategorySwipe';
+import { supabase } from '../config/supabase';
 
 // Écrans d'authentification
 import LoginScreen from '../screens/LoginScreen';
@@ -107,7 +112,58 @@ function CategoryPagerView({ state, navigation, descriptors }) {
   const pageRoutes = state.routes.filter((route) => route.name !== ADMIN_ROUTE);
   const adminRoute = state.routes.find((route) => route.name === ADMIN_ROUTE);
   const adminActive = state.routes[state.index].name === ADMIN_ROUTE;
+  const hasAdminRoute = Boolean(adminRoute);
   const pageCount = pageRoutes.length;
+  const [pendingClubCount, setPendingClubCount] = useState(0);
+  const badgeMountedRef = useRef(true);
+  const badgeRequestRef = useRef(0);
+
+  const refreshPendingClubCount = useCallback(async () => {
+    const requestId = badgeRequestRef.current + 1;
+    badgeRequestRef.current = requestId;
+
+    if (!hasAdminRoute) {
+      if (badgeMountedRef.current) setPendingClubCount(0);
+      return;
+    }
+
+    const { count, error } = await supabase
+      .from('club_proposals')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (!badgeMountedRef.current || requestId !== badgeRequestRef.current) return;
+
+    if (error) {
+      console.error('Erreur lors du chargement du badge admin :', error);
+      return;
+    }
+
+    setPendingClubCount(count ?? 0);
+  }, [hasAdminRoute]);
+
+  useEffect(() => {
+    badgeMountedRef.current = true;
+    void refreshPendingClubCount();
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refreshPendingClubCount();
+    });
+
+    return () => {
+      badgeMountedRef.current = false;
+      subscription.remove();
+    };
+  }, [refreshPendingClubCount]);
+
+  useEffect(() => {
+    if (adminActive) void refreshPendingClubCount();
+  }, [adminActive, refreshPendingClubCount]);
+
+  const adminBadgeValue = useMemo(
+    () => ({ pendingClubCount, refreshPendingClubCount }),
+    [pendingClubCount, refreshPendingClubCount]
+  );
 
   // Page affichée par la rangée. Admin étant déclarée en dernier, les index
   // des catégories coïncident avec ceux de state.routes. Pendant qu'Admin est
@@ -235,50 +291,55 @@ function CategoryPagerView({ state, navigation, descriptors }) {
   });
 
   return (
-    <ProfileNavContext.Provider value={openProfile}>
-      <View style={styles.mainTabsContainer}>
-        <GestureDetector gesture={panGesture}>
-          <View
-            style={[styles.pagerViewport, { display: adminActive ? 'none' : 'flex' }]}
-            onLayout={(e) => {
-              const w = e.nativeEvent.layout.width;
-              if (w > 0) setWidth(w);
-            }}
-          >
-            <Animated.View
-              style={{
-                flex: 1,
-                flexDirection: 'row',
-                width: width * pageCount,
-                transform: [{ translateX }],
-              }}
-            >
-              {pageRoutes.map((route) => (
-                <View key={route.key} style={{ width, height: '100%' }}>
-                  {descriptors[route.key].render()}
-                </View>
-              ))}
-            </Animated.View>
-          </View>
-        </GestureDetector>
+    <CategorySwipeContext.Provider value={panGesture}>
+      <AdminBadgeContext.Provider value={adminBadgeValue}>
+        <ProfileNavContext.Provider value={openProfile}>
+          <View style={styles.mainTabsContainer}>
+            <GestureDetector gesture={panGesture}>
+              <View
+                style={[styles.pagerViewport, { display: adminActive ? 'none' : 'flex' }]}
+                onLayout={(e) => {
+                  const w = e.nativeEvent.layout.width;
+                  if (w > 0) setWidth(w);
+                }}
+              >
+                <Animated.View
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    width: width * pageCount,
+                    transform: [{ translateX }],
+                  }}
+                >
+                  {pageRoutes.map((route) => (
+                    <View key={route.key} style={{ width, height: '100%' }}>
+                      {descriptors[route.key].render()}
+                    </View>
+                  ))}
+                </Animated.View>
+              </View>
+            </GestureDetector>
 
-        {adminRoute && adminVisitedRef.current && (
-          <View style={[styles.adminScene, { display: adminActive ? 'flex' : 'none' }]}>
-            {descriptors[adminRoute.key].render()}
-          </View>
-        )}
+            {adminRoute && adminVisitedRef.current && (
+              <View style={[styles.adminScene, { display: adminActive ? 'flex' : 'none' }]}>
+                {descriptors[adminRoute.key].render()}
+              </View>
+            )}
 
-        <CustomBottomTabBar
-          tabs={tabs}
-          activeTabName={state.routes[state.index].name}
-          onSelectTab={(name) => navigation.navigate(name)}
-          isAdmin={Boolean(adminRoute)}
-          adminActive={adminActive}
-          adminLabel={adminRoute ? descriptors[adminRoute.key].options.title : undefined}
-          onSelectAdmin={() => navigation.navigate(ADMIN_ROUTE)}
-        />
-      </View>
-    </ProfileNavContext.Provider>
+            <CustomBottomTabBar
+              tabs={tabs}
+              activeTabName={state.routes[state.index].name}
+              onSelectTab={(name) => navigation.navigate(name)}
+              isAdmin={hasAdminRoute}
+              adminActive={adminActive}
+              adminLabel={adminRoute ? descriptors[adminRoute.key].options.title : undefined}
+              adminBadgeCount={pendingClubCount}
+              onSelectAdmin={() => navigation.navigate(ADMIN_ROUTE)}
+            />
+          </View>
+        </ProfileNavContext.Provider>
+      </AdminBadgeContext.Provider>
+    </CategorySwipeContext.Provider>
   );
 }
 
@@ -390,6 +451,13 @@ const ADMIN_MENU = [
 function AdminHomeScreen({ navigation }) {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { pendingClubCount, refreshPendingClubCount } = useAdminBadge();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPendingClubCount();
+    }, [refreshPendingClubCount])
+  );
 
   return (
     <View style={styles.container}>
@@ -411,6 +479,13 @@ function AdminHomeScreen({ navigation }) {
               <Ionicons name={item.icon} size={24} color={PALETTE.ink} />
             </View>
             <Text style={styles.menuText}>{t(item.labelKey)}</Text>
+            {item.route === 'AdminClubProposals' && pendingClubCount > 0 ? (
+              <View style={styles.menuBadge}>
+                <Text style={styles.menuBadgeText}>
+                  {pendingClubCount > 99 ? '99+' : pendingClubCount}
+                </Text>
+              </View>
+            ) : null}
             <Ionicons name="arrow-forward" size={22} color={PALETTE.ink} />
           </PopPressable>
         ))}
@@ -568,5 +643,24 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: COLORS.text,
     marginLeft: 14,
+  },
+  menuBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 5,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.cherry,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  menuBadgeText: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 14,
+    lineHeight: 16,
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
 });

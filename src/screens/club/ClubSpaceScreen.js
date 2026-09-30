@@ -19,6 +19,7 @@ import {
 } from '../../services/clubService';
 import { COLORS, FONTS, PALETTE, SECTION_COLORS, STROKE } from '../../constants/theme';
 import ClubFeedTab from './ClubFeedTab';
+import ClubSessionsTab from './ClubSessionsTab';
 import ClubProjectsTab from './ClubProjectsTab';
 import ClubMembersTab from './ClubMembersTab';
 import ClubRequestsTab from './ClubRequestsTab';
@@ -26,7 +27,8 @@ import ClubRequestsTab from './ClubRequestsTab';
 /**
  * Espace privé d'un club, réservé à ses membres (et aux admins BDE) :
  * - Fil : annonces du bureau ;
- * - Projets : idées proposées par les membres, projets en cours et terminés ;
+ * - Sessions : rendez-vous du bureau auxquels les membres répondent ;
+ * - Projets : projets du bureau, en lecture seule pour les membres ;
  * - Membres : liste, rôles ; le président gère les membres ;
  * - Demandes : demandes d'adhésion, visibles du seul président (et des admins).
  * Le président (et l'admin) accède aux réglages via la roue du header.
@@ -140,6 +142,7 @@ export default function ClubSpaceScreen({ route, navigation }) {
 
   const tabs = [
     { key: 'feed', label: t('clubSpace.tabs.feed'), icon: 'megaphone' },
+    { key: 'sessions', label: t('clubSpace.tabs.sessions'), icon: 'calendar' },
     { key: 'projects', label: t('clubSpace.tabs.projects'), icon: 'bulb' },
     { key: 'members', label: t('clubSpace.tabs.members'), icon: 'people' },
     ...(perms.canManageMembers
@@ -203,6 +206,7 @@ export default function ClubSpaceScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       {activeTab === 'feed' && <ClubFeedTab {...tabProps} />}
+      {activeTab === 'sessions' && <ClubSessionsTab {...tabProps} />}
       {activeTab === 'projects' && <ClubProjectsTab {...tabProps} />}
       {activeTab === 'members' && <ClubMembersTab {...tabProps} />}
       {activeTab === 'requests' && <ClubRequestsTab {...tabProps} />}

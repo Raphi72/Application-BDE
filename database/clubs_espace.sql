@@ -1,5 +1,5 @@
 -- ============================================
--- ESPACE CLUB : présidents, adhésions, projets, annonces
+-- ESPACE CLUB : présidents, adhésions, sessions, projets, annonces
 -- À exécuter dans Supabase > SQL Editor, APRÈS schema.sql.
 -- Idempotent : peut être relancé sans casser l'existant.
 -- ============================================
@@ -12,14 +12,14 @@
 -- - Un étudiant demande à rejoindre un club (RPC request_club_join) avec un
 --   message facultatif ; seul le président (et les admins BDE) voit la demande,
 --   avec le nom et l'email du demandeur, et l'accepte ou la refuse.
--- - Les membres ont un espace privé : annonces du bureau, projets et idées,
---   liste des membres. Le bureau (role 'bureau') publie les annonces et gère
---   les projets ; le président gère aussi les membres et les infos du club.
+-- - Les membres ont un espace privé en lecture : annonces, sessions, projets
+--   et liste des membres. Ils répondent présent/absent aux sessions. Le bureau
+--   (role 'bureau') publie les contenus ; le président gère aussi les demandes,
+--   les membres et les infos du club.
 -- - clubs.members_count est tenu à jour automatiquement (trigger).
 --
--- Toutes les écritures sensibles passent par des fonctions SECURITY DEFINER
--- qui vérifient les droits de l'appelant ; les tables n'ont pas de politique
--- d'écriture directe quand une RPC existe.
+-- Les écritures sensibles passent par des fonctions SECURITY DEFINER ou des
+-- politiques RLS qui vérifient les droits de l'appelant.
 
 -- ============================================
 -- 1. CLUBS : colonnes ajoutées
@@ -102,6 +102,36 @@ CREATE TABLE IF NOT EXISTS public.club_posts (
 );
 
 CREATE INDEX IF NOT EXISTS club_posts_club_id_idx ON public.club_posts(club_id);
+
+-- Sessions du club : créées par le bureau, consultées par les membres qui
+-- peuvent indiquer s'ils participent ou non.
+CREATE TABLE IF NOT EXISTS public.club_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE RESTRICT,
+  title TEXT NOT NULL CHECK (char_length(btrim(title)) BETWEEN 1 AND 120),
+  description TEXT CHECK (char_length(description) <= 2000),
+  session_date DATE NOT NULL,
+  session_time TIME NOT NULL,
+  location TEXT NOT NULL CHECK (char_length(btrim(location)) BETWEEN 1 AND 200),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS club_sessions_club_date_idx
+  ON public.club_sessions(club_id, session_date, session_time);
+
+CREATE TABLE IF NOT EXISTS public.club_session_responses (
+  session_id UUID NOT NULL REFERENCES public.club_sessions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  response TEXT NOT NULL CHECK (response IN ('going', 'not_going')),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (session_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS club_session_responses_user_idx
+  ON public.club_session_responses(user_id);
 
 -- ============================================
 -- 3. FONCTIONS DE DROITS
@@ -311,6 +341,33 @@ CREATE TRIGGER club_posts_author
   BEFORE INSERT OR UPDATE ON public.club_posts
   FOR EACH ROW EXECUTE FUNCTION public.set_club_content_author();
 
+-- Métadonnées des sessions : auteur fixé à l'appelant et champs structurels
+-- immuables après création.
+CREATE OR REPLACE FUNCTION public.set_club_session_metadata()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF auth.uid() IS NOT NULL THEN
+      NEW.created_by := auth.uid();
+    END IF;
+  ELSE
+    NEW.club_id := OLD.club_id;
+    NEW.created_by := OLD.created_by;
+    NEW.created_at := OLD.created_at;
+    NEW.updated_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS club_sessions_metadata ON public.club_sessions;
+CREATE TRIGGER club_sessions_metadata
+  BEFORE INSERT OR UPDATE ON public.club_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.set_club_session_metadata();
+
 -- Date de fin d'un projet (sert au rapport mensuel).
 CREATE OR REPLACE FUNCTION public.set_club_project_completed_at()
 RETURNS TRIGGER
@@ -341,6 +398,8 @@ ALTER TABLE public.club_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.club_join_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.club_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.club_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.club_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.club_session_responses ENABLE ROW LEVEL SECURITY;
 
 -- Membres : chacun voit ses adhésions, les membres voient ceux de leur club.
 -- Écriture uniquement via les RPC (request/respond/leave/remove…).
@@ -354,35 +413,41 @@ CREATE POLICY "Club members are viewable by club members" ON public.club_members
 DROP POLICY IF EXISTS "Join requests are viewable by requester and president" ON public.club_join_requests;
 CREATE POLICY "Join requests are viewable by requester and president" ON public.club_join_requests
   FOR SELECT USING (
-    user_id = auth.uid() OR is_club_president(club_id) OR is_bde_admin()
+    (user_id = auth.uid() AND NOT is_club_member(club_id))
+    OR is_club_president(club_id)
+    OR is_bde_admin()
   );
 
 -- Le demandeur peut annuler une demande encore en attente.
 DROP POLICY IF EXISTS "Requesters can cancel pending requests" ON public.club_join_requests;
 CREATE POLICY "Requesters can cancel pending requests" ON public.club_join_requests
-  FOR DELETE USING (user_id = auth.uid() AND status = 'pending');
+  FOR DELETE USING (
+    user_id = auth.uid()
+    AND status = 'pending'
+    AND NOT is_club_member(club_id)
+  );
 
--- Projets : visibles des membres ; un membre propose des idées, le bureau
--- gère tout ; l'auteur d'une idée peut la modifier tant qu'elle reste une idée.
+-- Projets : visibles des membres, écrits uniquement par le bureau.
 DROP POLICY IF EXISTS "Club projects are viewable by club members" ON public.club_projects;
 CREATE POLICY "Club projects are viewable by club members" ON public.club_projects
   FOR SELECT USING (is_club_member(club_id) OR is_bde_admin());
 
 DROP POLICY IF EXISTS "Club members can propose projects" ON public.club_projects;
-CREATE POLICY "Club members can propose projects" ON public.club_projects
-  FOR INSERT WITH CHECK (
-    is_club_manager(club_id) OR (is_club_member(club_id) AND status = 'idea')
-  );
-
 DROP POLICY IF EXISTS "Club managers and idea authors can update projects" ON public.club_projects;
-CREATE POLICY "Club managers and idea authors can update projects" ON public.club_projects
-  FOR UPDATE
-  USING (is_club_manager(club_id) OR (author_id = auth.uid() AND status = 'idea'))
-  WITH CHECK (is_club_manager(club_id) OR (author_id = auth.uid() AND status = 'idea'));
-
 DROP POLICY IF EXISTS "Club managers and idea authors can delete projects" ON public.club_projects;
-CREATE POLICY "Club managers and idea authors can delete projects" ON public.club_projects
-  FOR DELETE USING (is_club_manager(club_id) OR (author_id = auth.uid() AND status = 'idea'));
+DROP POLICY IF EXISTS "Club managers can insert projects" ON public.club_projects;
+CREATE POLICY "Club managers can insert projects" ON public.club_projects
+  FOR INSERT TO authenticated WITH CHECK (is_club_manager(club_id));
+
+DROP POLICY IF EXISTS "Club managers can update projects" ON public.club_projects;
+CREATE POLICY "Club managers can update projects" ON public.club_projects
+  FOR UPDATE TO authenticated
+  USING (is_club_manager(club_id))
+  WITH CHECK (is_club_manager(club_id));
+
+DROP POLICY IF EXISTS "Club managers can delete projects" ON public.club_projects;
+CREATE POLICY "Club managers can delete projects" ON public.club_projects
+  FOR DELETE TO authenticated USING (is_club_manager(club_id));
 
 -- Annonces : visibles des membres, écrites par le bureau.
 DROP POLICY IF EXISTS "Club posts are viewable by club members" ON public.club_posts;
@@ -400,6 +465,44 @@ CREATE POLICY "Club managers can update posts" ON public.club_posts
 DROP POLICY IF EXISTS "Club managers can delete posts" ON public.club_posts;
 CREATE POLICY "Club managers can delete posts" ON public.club_posts
   FOR DELETE USING (is_club_manager(club_id));
+
+-- Sessions : lecture par les membres, gestion par le bureau.
+DROP POLICY IF EXISTS "Club sessions are viewable by club members" ON public.club_sessions;
+CREATE POLICY "Club sessions are viewable by club members" ON public.club_sessions
+  FOR SELECT TO authenticated
+  USING (is_club_member(club_id) OR is_bde_admin());
+
+DROP POLICY IF EXISTS "Club managers can insert sessions" ON public.club_sessions;
+CREATE POLICY "Club managers can insert sessions" ON public.club_sessions
+  FOR INSERT TO authenticated WITH CHECK (is_club_manager(club_id));
+
+DROP POLICY IF EXISTS "Club managers can update sessions" ON public.club_sessions;
+CREATE POLICY "Club managers can update sessions" ON public.club_sessions
+  FOR UPDATE TO authenticated
+  USING (is_club_manager(club_id))
+  WITH CHECK (is_club_manager(club_id));
+
+DROP POLICY IF EXISTS "Club managers can delete sessions" ON public.club_sessions;
+CREATE POLICY "Club managers can delete sessions" ON public.club_sessions
+  FOR DELETE TO authenticated USING (is_club_manager(club_id));
+
+-- Les réponses sont visibles des membres ; leur écriture passe uniquement par
+-- respond_club_session, qui impose l'identité de l'appelant.
+DROP POLICY IF EXISTS "Club session responses are viewable by club members"
+  ON public.club_session_responses;
+CREATE POLICY "Club session responses are viewable by club members"
+  ON public.club_session_responses
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.club_sessions session
+      WHERE session.id = session_id
+        AND (is_club_member(session.club_id) OR is_bde_admin())
+    )
+  );
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.club_sessions TO authenticated;
+GRANT SELECT ON public.club_session_responses TO authenticated;
 
 -- Storage : un président peut envoyer les photos de son club (dossier clubs/).
 -- Les admins gardent leur politique existante (SETUP_STORAGE_SIMPLE.md).
@@ -512,6 +615,53 @@ BEGIN
   RETURN v_request;
 END;
 $$;
+
+-- Réponse d'un membre à une session. user_id est toujours auth.uid().
+CREATE OR REPLACE FUNCTION public.respond_club_session(
+  p_session_id UUID,
+  p_response TEXT
+)
+RETURNS public.club_session_responses
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_club_id UUID;
+  v_response public.club_session_responses%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'not_authenticated';
+  END IF;
+  IF p_response NOT IN ('going', 'not_going') THEN
+    RAISE EXCEPTION 'invalid_response';
+  END IF;
+
+  SELECT club_id INTO v_club_id
+  FROM public.club_sessions
+  WHERE id = p_session_id;
+
+  IF v_club_id IS NULL THEN
+    RAISE EXCEPTION 'session_not_found';
+  END IF;
+  IF NOT public.is_club_member(v_club_id) THEN
+    RAISE EXCEPTION 'not_allowed';
+  END IF;
+
+  INSERT INTO public.club_session_responses (session_id, user_id, response)
+  VALUES (p_session_id, v_uid, p_response)
+  ON CONFLICT (session_id, user_id)
+  DO UPDATE SET response = EXCLUDED.response, updated_at = NOW()
+  RETURNING * INTO v_response;
+
+  RETURN v_response;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.respond_club_session(UUID, TEXT)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.respond_club_session(UUID, TEXT)
+  TO authenticated;
 
 -- Quitter un club (le président doit d'abord transmettre la présidence).
 CREATE OR REPLACE FUNCTION public.leave_club(p_club_id UUID)

@@ -20,6 +20,7 @@ export default function CustomBottomTabBar({
   isAdmin,
   adminActive,
   adminLabel,
+  adminBadgeCount = 0,
   onSelectAdmin,
 }) {
   const insets = useSafeAreaInsets();
@@ -42,6 +43,7 @@ export default function CustomBottomTabBar({
       label: adminLabel,
       color: SECTION_COLORS.Admin,
       focused: adminActive,
+      badgeCount: adminBadgeCount,
       onPress: onSelectAdmin,
     });
   }
@@ -56,7 +58,9 @@ export default function CustomBottomTabBar({
             onPress={item.onPress}
             accessibilityRole="tab"
             accessibilityState={{ selected: item.focused }}
-            accessibilityLabel={item.label}
+            accessibilityLabel={
+              item.badgeCount > 0 ? `${item.label}, ${item.badgeCount}` : item.label
+            }
           >
             {/* key : la pastille est recréée à chaque changement d'état. Sur
                 Android, une vue qui reçoit sa couleur de fond après le montage
@@ -71,6 +75,13 @@ export default function CustomBottomTabBar({
                 color={item.focused ? PALETTE.ink : PALETTE.paper}
                 style={!item.focused && styles.inactive}
               />
+              {item.badgeCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <Text
               numberOfLines={1}
@@ -122,5 +133,26 @@ const styles = StyleSheet.create({
   inactive: {
     color: PALETTE.paper,
     opacity: 0.6,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -4,
+    minWidth: 21,
+    height: 21,
+    paddingHorizontal: 4,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.cherry,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 12,
+    lineHeight: 14,
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
 });

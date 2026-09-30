@@ -145,12 +145,35 @@ ALTER TABLE gallery_albums ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gallery_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
+-- Vérification admin utilisable dans les politiques de profiles sans récursion RLS
+CREATE OR REPLACE FUNCTION public.is_profile_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_profile_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_profile_admin() TO authenticated;
+
 -- Profils : Lecture pour tous, modification pour soi-même
 CREATE POLICY "Profiles are viewable by everyone" ON profiles
   FOR SELECT USING (true);
 
 CREATE POLICY "Users can update own profile" ON profiles
   FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Admins can update profiles" ON profiles
+  FOR UPDATE TO authenticated
+  USING (public.is_profile_admin())
+  WITH CHECK (true);
 
 -- Événements : Lecture pour tous, écriture pour admin
 CREATE POLICY "Events are viewable by everyone" ON events
@@ -346,23 +369,53 @@ CREATE POLICY "Users can delete own push tokens" ON push_tokens
 
 -- Fonction pour créer automatiquement un profil lors de l'inscription
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
   INSERT INTO public.profiles (id, name, role)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', 'Utilisateur'),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'user')
+    'user'
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger pour créer le profil automatiquement
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Refuser les changements de rôle venant d'un utilisateur non administrateur.
+-- Le SQL Editor et service_role ont auth.uid() IS NULL et restent autorisés.
+CREATE OR REPLACE FUNCTION public.guard_profile_role_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role
+     AND auth.uid() IS NOT NULL
+     AND NOT public.is_profile_admin() THEN
+    RAISE EXCEPTION 'Seul un administrateur peut modifier le rôle d''un profil'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_profile_role_change ON public.profiles;
+CREATE TRIGGER guard_profile_role_change
+  BEFORE UPDATE OF role ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_profile_role_change();
 
 -- Fonction pour mettre à jour updated_at automatiquement
 CREATE OR REPLACE FUNCTION update_updated_at_column()
