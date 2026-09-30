@@ -27,8 +27,10 @@ export const pickImage = async () => {
   await requestImagePermissions();
 
   // Ouvrir le sélecteur d'image
+  // MediaType n'est qu'un type TypeScript (pas d'objet à l'exécution) :
+  // ImagePicker.MediaType.Images plantait. L'API attend un tableau de chaînes.
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaType.Images,
+    mediaTypes: ['images'],
     allowsEditing: true,
     aspect: [4, 3],
     quality: 0.8,

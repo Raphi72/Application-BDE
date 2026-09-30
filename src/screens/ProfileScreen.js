@@ -18,6 +18,8 @@ import { supabase } from '../config/supabase';
 import { COLORS, FONTS, PALETTE, SECTION_COLORS, STROKE } from '../constants/theme';
 import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
 import { SectionTitle, Sticker, Wordmark } from '../components/ui/Deco';
+import MyClubRow from '../components/MyClubRow';
+import { useMyClubs } from '../hooks/useMyClubs';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -42,8 +44,14 @@ const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
 /**
  * Écran de profil utilisateur
  */
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { user, signOut, isAdmin } = useAuth();
+  const { myClubs, pendingForPresident } = useMyClubs();
+  const isClubPresident = myClubs.some((club) => club.isPresident);
+
+  // L'espace d'un club vit dans la pile de la rubrique Clubs.
+  const openClubSpace = (clubId) =>
+    navigation.navigate('MainTabs', { screen: 'Clubs', params: { screen: 'ClubSpace', params: { clubId } } });
   const { t, language, setLanguage, availableLanguages, getCurrentLanguage } = useLanguage();
   const [userProfile, setUserProfile] = useState(null);
   const [adminStatus, setAdminStatus] = useState(false);
@@ -238,14 +246,34 @@ export default function ProfileScreen() {
         <View style={styles.cardBottom}>
           <Text style={styles.cardFooterText}>BDE AIVANCITY · {new Date().getFullYear()}</Text>
           <Sticker
-            label={adminStatus ? t('profile.administrator') : t('profile.member')}
-            icon={adminStatus ? 'shield-checkmark' : 'sparkles'}
-            color={adminStatus ? PALETTE.tangerine : PALETTE.lime}
+            label={
+              adminStatus
+                ? t('profile.administrator')
+                : isClubPresident
+                  ? t('profile.clubPresident')
+                  : t('profile.member')
+            }
+            icon={adminStatus ? 'shield-checkmark' : isClubPresident ? 'star' : 'sparkles'}
+            color={adminStatus ? PALETTE.tangerine : isClubPresident ? PALETTE.sun : PALETTE.lime}
             rotate={-3}
             small
           />
         </View>
       </PopCard>
+
+      {myClubs.length > 0 ? (
+        <View style={{ marginBottom: 14 }}>
+          <SectionTitle title={t('profile.myClubs')} count={myClubs.length} color={SECTION_COLORS.Clubs} />
+          {myClubs.map((club) => (
+            <MyClubRow
+              key={club.id}
+              club={club}
+              pendingCount={pendingForPresident[club.id]}
+              onPress={() => openClubSpace(club.id)}
+            />
+          ))}
+        </View>
+      ) : null}
 
       <SectionTitle title={t('profile.settings')} />
 

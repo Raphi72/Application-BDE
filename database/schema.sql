@@ -437,3 +437,9 @@ CREATE TRIGGER update_push_tokens_updated_at BEFORE UPDATE ON push_tokens
 -- 1. Créer un compte via l'application
 -- 2. Aller dans Supabase Dashboard > Table Editor > profiles
 -- 3. Modifier le rôle de l'utilisateur de 'user' à 'admin'
+
+-- ============================================
+-- SUITE : ESPACE CLUB
+-- ============================================
+-- Exécuter ensuite database/clubs_espace.sql (présidents, adhésions, annonces,
+-- projets, RPC et politiques associées).

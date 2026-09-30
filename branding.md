@@ -471,6 +471,12 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | `AuthBrand` | Logotype géant **ou** petit logotype + titre, pastille BDE AIVANCITY, sous-titre |
 | `authStyles` | Champs : fond blanc, hauteur 58, rayon 16, contour 2.5. Focus : fond `#FFF3CF`, contour 3. Erreur : boîte `#FFE3DD`. Lien : Space Grotesk 700, souligné, encre |
 
+### Feuille modale — [`components/ui/Sheet.js`](src/components/ui/Sheet.js)
+
+| Composant | Rôle |
+|---|---|
+| `Sheet` | Panneau papier qui monte du bas (petits formulaires : demande d'adhésion, projet, rôle d'un membre). Coins hauts de 26, contour encre 2.5 sans bord bas, titre Display 20 + bouton fermer rond de 38. Fond d'écran encre à 45 %, qui ferme la feuille au toucher. Hauteur max 88 % |
+
 ### Composants métier
 
 | Composant | Fichier | Description |
@@ -481,6 +487,8 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | `PollCard` | [`PollCard.js`](src/components/PollCard.js) | Bandeau pervenche (statut + échéance + question Display 18). Avant vote : options pressables avec lettre A/B/C en rond, sélection en `sun`, bouton « Valider mon vote ». Après vote ou clôture : barres de 22 px, gagnante en pervenche, pastille TON VOTE |
 | `NewsCard` | [`NewsCard.js`](src/components/NewsCard.js) | Fanzine : photo si elle existe, pastille catégorie, date Varsity, titre Display, chapeau, « PAR LE BDE » + flèche ronde. La plus récente est « à la une » sur fond `sun` |
 | `ClubCard`, `ClubPatch` | [`ClubCard.js`](src/components/ClubCard.js) | Écusson de 76 px + nom, catégorie, description sur 2 lignes, membres, président |
+| `MyClubRow` | [`MyClubRow.js`](src/components/MyClubRow.js) | « Un de mes clubs » : écusson de 50 px, nom Display 17, pastille de rôle et, pour le président, pastille `sun` « N demandes », flèche |
+| `RoleSticker`, `Avatar`, `CapacityGauge`, `formStyles` | [`clubUi.js`](src/components/clubUi.js) | Rôle en pastille : Président `bubblegum` (étoile), Bureau `periwinkle` (intitulé libre), Membre blanc · initiale sur rond coloré (`accentFor`) · jauge d'effectif (hauteur 14, remplissage `lime`, repère encre à l'objectif de la charte, 3/4 de la capacité) · champs de formulaire (libellé Varsity 15, champ contour 2, rayon 14) |
 | `CustomBottomTabBar` | [`navigation/CustomBottomTabBar.js`](src/navigation/CustomBottomTabBar.js) | Pilule encre flottante (rayon 26), ombre à la couleur de la rubrique active. Onglet actif : pastille de 48 × 32 colorée, icône pleine encre, libellé coloré. Inactif : icône contour papier à 60 % |
 | `LanguageSwitcher` | [`LanguageSwitcher.js`](src/components/LanguageSwitcher.js) | Pilule blanche contour 2.5, option active fond encre. `floating` : en haut à droite, sous la barre d'état |
 
@@ -498,11 +506,13 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | **Détail d'événement** | Visuel héros avec étoile de compte à rebours, carte « quand » (souche + date longue + heure), carte lieu qui ouvre Google Maps, carte participants, description, barre d'action fixe (Je m'inscris / Se désinscrire / Complet / Événement terminé) |
 | **Sondages** | Vote direct dans la liste, résultats après le vote |
 | **Actualités** | Fanzine, première actu à la une, détail avec héros (ou visuel de repli 📰) |
-| **Clubs** | Écussons ; en fin de liste, carte `sun` « Ton club ici ? » (Proposer + Lire la charte) |
-| **Détail de club** | Écusson de 96 px + nom Display 28, stats en blocs (membres en `periwinkle`, président en `bubblegum`), ligne contact, description, « Contacter le président » fixé en bas |
+| **Clubs** | « MES CLUBS » en tête (`MyClubRow`) si l'on est membre, puis « TOUS LES CLUBS » en écussons ; en fin de liste, carte `sun` « Ton club ici ? » (Proposer + Lire la charte) |
+| **Détail de club** | Écusson de 96 px + nom Display 28 + pastilles catégorie et rôle, stats en blocs (membres « sur N » en `periwinkle`, président en `bubblegum`), ligne contact, description, « Quitter le club » en lien rouge discret. Barre d'action fixe selon la relation : Rejoindre le club (primary, ouvre une `Sheet` avec message facultatif) · Demande envoyée (pastille `sun`) + Annuler (light) · Espace du club (primary) · Gérer mon club (dark, président) · Recrutement fermé / Club complet (désactivé) |
+| **Espace club** | Header de détail au nom du club + roue des réglages (président, admin). Carte d'identité : écusson, rôle, effectif Varsity 40, jauge de capacité, objectif charte, lien « N demandes ». Onglets à largeur égale (pilule blanche, onglet actif encre, compteur en pastille `sun`) : **Fil** (annonces ; épinglées sur fond `sun`), **Projets** (sections En cours / Idées / Terminés, pastilles `periwinkle` / `sun` / `lime`), **Membres**, **Demandes** (président et admin : nom, email souligné, message dans une bulle papier, Refuser `danger` / Accepter `success`) |
+| **Réglages du club** | Infos publiques dans une carte blanche (champs papier), puces de catégorie `lime`, recrutement Ouvert / Fermé (`Segmented`), photos de 96 px (ajout en pointillés) ; carte `sun` « Rapport mensuel » (bouton dark) ; carte `bubblegum` réservée aux admins pour désigner le président |
 | **Charte** (modale) | Bandeau `lime` + dents de scie, sections en cartes numérotées 01 à 05 (carrés colorés penchés) |
 | **Proposer un club** | Bloc charte `lime`, sections blanches contour 2.5, champs papier contour 2, puces de catégorie en pilule (sélection `lime`) |
-| **Profil** | Carte de membre (encre, bandes varsity, avatar `bubblegum`, statut MEMBRE ou ADMINISTRATEUR), Réglages, Déconnexion (light), « Zone sensible » avec lien de suppression discret |
+| **Profil** | Carte de membre (encre, bandes varsity, avatar `bubblegum`, statut MEMBRE, PRÉSIDENT DE CLUB en `sun` ou ADMINISTRATEUR), « MES CLUBS » (`MyClubRow`, ouvre l'espace du club), Réglages, Déconnexion (light), « Zone sensible » avec lien de suppression discret |
 | **Admin** | Header `bubblegum`, menu en cartes pop avec carré d'icône à la couleur de chaque rubrique |
 
 ---

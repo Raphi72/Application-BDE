@@ -38,7 +38,17 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - Ouverture du Profil depuis les headers : `ProfileNavContext` / `useOpenProfile` (`src/navigation/ProfileNav.js`).
 - `expo-notifications` est chargé par un `require` différé, hors Expo Go : son simple import y affiche une erreur.
 - i18n : `src/translations/fr.js` **et** `en.js`, `t('section.cle', { param })` avec `{{param}}` dans les chaînes. Pluriels via `src/utils/plural.js`.
-- Dates : `dateParts()` et `formatTime()` dans `src/utils/dateUtils.js`.
+- Dates : `dateParts()`, `formatTime()` et `formatShortDate()` dans `src/utils/dateUtils.js`.
+- Dialogues multiplateformes : `showMessage` / `confirmAction` (`src/utils/dialogs.js`), car `Alert.alert` ne fait rien sur web.
+
+## Espace club
+
+- Base : `database/clubs_espace.sql` (à exécuter après `schema.sql`, idempotent). Tables `club_members`, `club_join_requests`, `club_posts`, `club_projects` ; colonnes `clubs.president_id`, `proposal_id`, `max_capacity`, `recruiting`.
+- Les écritures sensibles passent par des RPC `SECURITY DEFINER` qui vérifient les droits et lèvent des codes courts (`club_full`, `not_allowed`…), traduits par `clubErrorMessage` (`src/services/clubService.js`, point d'accès unique aux données clubs).
+- Triggers : `members_count` = nombre réel de lignes `club_members` (toute saisie manuelle est écrasée) ; quand un admin valide une proposition (club créé puis proposition `approved`, ou l'inverse), le club est relié à la proposition de même nom et son auteur devient président. Les écrans admin n'ont donc rien de spécial à faire.
+- Droits : membre = voit l'espace (fil, projets, membres sans emails), propose des idées ; bureau (`role = 'bureau'`) = publie les annonces, gère les projets ; président (`clubs.president_id`) = en plus demandes d'adhésion, emails, rôles, retrait, transmission, réglages, rapport mensuel ; admin BDE = tout, plus désigner le président par email.
+- Écrans : `src/screens/club/` (`ClubSpaceScreen` + un fichier par onglet, `ClubSettingsScreen`), routés dans la pile de `ClubsScreen`. Le Profil y accède via `navigate('MainTabs', { screen: 'Clubs', params: { screen: 'ClubSpace', params: { clubId } } })`. Adhésions de l'utilisateur : hook `useMyClubs` (rechargé au focus).
+- Tests SQL : la migration a été validée dans PGlite (Postgres en WASM) avec des stubs `auth.users`, `auth.uid()` et `storage`. Pour la retester, recréer ce banc plutôt que de tester sur le Supabase de prod.
 
 ## Design system NØVYX
 
@@ -76,3 +86,6 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - `play-store/FICHE_PLAY_STORE.md` contient les identifiants du compte testeur (administrateur) dans un dépôt public : mot de passe à changer, identifiants à sortir du dépôt.
 - `GalleryScreen` est importé mais jamais routé (code mort).
 - Web uniquement : un drag souris qui commence et finit sur une carte l'ouvre au relâchement (react-native-web déclenche `onPress` sur `click`). Problème préexistant, le mobile n'est pas concerné.
+- Web uniquement : donner le focus à un champ dans une rubrique (espace club, proposition de club…) fait défiler horizontalement le conteneur `overflow: hidden` du pager, ce qui décale la page. Le mobile n'est pas concerné. Correctif possible : remettre `scrollLeft` à 0 sur ce conteneur (écouteur `scroll`).
+- Espace club : pas encore de notification push au président pour une nouvelle demande, ni au demandeur à la réponse. Les jetons push ne sont lisibles que par les admins : il faudrait une Edge Function Supabase.
+- Espace club : la politique de confidentialité doit mentionner que le président d'un club voit le nom, l'email et le message des personnes qui demandent à le rejoindre.
