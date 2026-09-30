@@ -1,20 +1,91 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  Alert,
-  Platform,
-} from 'react-native';
-import Text, { TextInput } from '../../components/ui/AppText';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Text from '../../components/ui/AppText';
 import { supabase } from '../../config/supabase';
-import { COLORS, SHADOWS } from '../../constants/theme';
+import { PopButton, PopPressable } from '../../components/ui/Pop';
+import { EmptyState, Sticker } from '../../components/ui/Deco';
+import { FONTS, PALETTE, SECTION_COLORS, STROKE } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
 import { useLanguage } from '../../context/LanguageContext';
+import { dateParts, isPastDate } from '../../utils/dateUtils';
+import { confirmAction, showMessage } from '../../utils/dialogs';
+import {
+  AdminFormModal,
+  AdminItemActions,
+  AdminListHeader,
+  FormField,
+  FormSection,
+  dayOnly,
+  isValidDate,
+  useAdminForm,
+} from './AdminKit';
+
+const COLOR = SECTION_COLORS.Polls;
+const LETTERS = 'ABCDEFGHIJ';
+const MIN_OPTION_FIELDS = 4;
+
+const EMPTY_FORM = {
+  question: '',
+  options: ['', '', '', ''],
+  endDate: '',
+};
+
+// Au moins MIN_OPTION_FIELDS champs d'option, même si le sondage en a moins.
+const formFromPoll = (poll) => {
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  return {
+    question: poll.question ?? '',
+    options: [...options, ...Array(Math.max(0, MIN_OPTION_FIELDS - options.length)).fill('')],
+    endDate: dayOnly(poll.end_date),
+  };
+};
+
+/**
+ * Aperçu d'un sondage dans la liste admin : bandeau pervenche (statut,
+ * échéance, question) puis ses options lettrées.
+ */
+function AdminPollCard({ poll, onPress }) {
+  const { t, language } = useLanguage();
+  const isPast = isPastDate(poll.end_date);
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const end = poll.end_date ? dateParts(poll.end_date, language) : null;
+
+  return (
+    <PopPressable onPress={onPress} radius={22} containerStyle={styles.card} accessibilityLabel={poll.question}>
+      <View style={styles.head}>
+        <View style={styles.headRow}>
+          <Sticker
+            label={isPast ? t('polls.endedBadge') : t('polls.active')}
+            color={isPast ? PALETTE.ink : PALETTE.lime}
+            textColor={isPast ? PALETTE.paper : PALETTE.ink}
+            rotate={-3}
+            small
+          />
+          <View style={styles.deadline}>
+            <Ionicons name="time" size={14} color={PALETTE.ink} />
+            <Text style={styles.deadlineText}>
+              {end ? `${t('polls.endDate')} ${end.day} ${end.month}` : t('polls.noEndDate')}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.question}>{poll.question}</Text>
+      </View>
+      <View style={styles.body}>
+        {options.map((option, index) => (
+          <View key={`${index}-${option}`} style={styles.optionRow}>
+            <View style={styles.letter}>
+              <Text style={styles.letterText}>{LETTERS[index]}</Text>
+            </View>
+            <Text style={styles.optionText} numberOfLines={2}>
+              {option}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </PopPressable>
+  );
+}
 
 /**
  * Écran admin pour gérer les sondages
@@ -24,15 +95,10 @@ export default function AdminPollsScreen() {
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingPoll, setEditingPoll] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const { visible, editing, form, setField, open, close, requestClose } = useAdminForm(EMPTY_FORM);
 
-  // Formulaire
-  const [question, setQuestion] = useState('');
-  const [options, setOptions] = useState(['', '', '', '']);
-  const [endDate, setEndDate] = useState('');
-
-  React.useEffect(() => {
+  useEffect(() => {
     loadPolls();
   }, []);
 
@@ -46,7 +112,8 @@ export default function AdminPollsScreen() {
       if (error) throw error;
       setPolls(data || []);
     } catch (error) {
-      Alert.alert(t('common.error'), 'Impossible de charger les sondages');
+      console.error('Erreur chargement sondages:', error);
+      showMessage(t('common.error'), t('admin.loadError'));
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -61,66 +128,44 @@ export default function AdminPollsScreen() {
     loadPolls(true);
   };
 
-  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
-  const hasUnsavedChanges = () => {
-    return Boolean(question || options.some(opt => opt.trim()) || endDate);
+  const openModal = (poll = null) => open(poll, poll ? formFromPoll(poll) : EMPTY_FORM);
+
+  const updateOption = (index, text) => {
+    setField('options', (prev) => prev.map((option, i) => (i === index ? text : option)));
   };
 
-  const requestCloseModal = async () => {
-    if (hasUnsavedChanges()) {
-      const confirmClose = Platform.OS === 'web'
-        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
-        : await new Promise((resolve) => {
-            Alert.alert(
-              t('admin.discardChangesTitle'),
-              t('admin.discardChangesConfirm'),
-              [
-                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
-              ]
-            );
-          });
-      if (!confirmClose) return;
-    }
-    setModalVisible(false);
-  };
-
-  const openModal = (poll = null) => {
-    if (poll) {
-      setEditingPoll(poll);
-      setQuestion(poll.question);
-      setOptions(poll.options || ['', '', '', '']);
-      setEndDate(poll.end_date || '');
-    } else {
-      setEditingPoll(null);
-      setQuestion('');
-      setOptions(['', '', '', '']);
-      setEndDate('');
-    }
-    setModalVisible(true);
-  };
+  const addOption = () => setField('options', (prev) => [...prev, '']);
 
   const handleSave = async () => {
-    if (!question || options.filter(opt => opt.trim()).length < 2) {
-      Alert.alert(t('common.error'), 'Veuillez remplir la question et au moins 2 options');
+    const question = form.question.trim();
+    const options = form.options.map((option) => option.trim()).filter(Boolean);
+    const endDate = form.endDate.trim();
+
+    if (!question || options.length < 2) {
+      showMessage(t('common.error'), t('admin.pollRequired'));
+      return;
+    }
+    if (endDate && !isValidDate(endDate)) {
+      showMessage(t('common.error'), t('admin.invalidDate'));
       return;
     }
 
+    setSaving(true);
     try {
       const pollData = {
         question,
-        options: options.filter(opt => opt.trim()),
+        options,
         end_date: endDate || null,
       };
 
-      if (editingPoll) {
+      if (editing) {
         const { error } = await supabase
           .from('polls')
           .update(pollData)
-          .eq('id', editingPoll.id);
+          .eq('id', editing.id);
 
         if (error) throw error;
-        Alert.alert(t('common.success'), t('admin.saveSuccess'));
+        showMessage(t('common.success'), t('admin.saveSuccess'));
       } else {
         const { error } = await supabase
           .from('polls')
@@ -131,296 +176,241 @@ export default function AdminPollsScreen() {
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewPoll(question);
 
-        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
+        showMessage(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
-      setModalVisible(false);
+      close();
       loadPolls();
     } catch (error) {
-      Alert.alert(t('common.error'), error.message);
+      showMessage(t('common.error'), error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleDelete = async (poll) => {
+    const confirmed = await confirmAction({
+      title: t('admin.deleteConfirm'),
+      message: t('admin.deletePollConfirm'),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!confirmed) return;
 
+    try {
+      const { error } = await supabase
+        .from('polls')
+        .delete()
+        .eq('id', poll.id);
 
-  const handleDelete = async (pollId) => {
-    Alert.alert(
-      t('admin.deleteConfirm'),
-      t('admin.deletePollConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('polls')
-                .delete()
-                .eq('id', pollId);
-
-              if (error) throw error;
-              loadPolls();
-            } catch (error) {
-              Alert.alert(t('common.error'), t('admin.deleteError'));
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const updateOption = (index, text) => {
-    const newOptions = [...options];
-    newOptions[index] = text;
-    setOptions(newOptions);
+      if (error) throw error;
+      loadPolls();
+    } catch (error) {
+      showMessage(t('common.error'), t('admin.deleteError'));
+    }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
-          <Ionicons name="add-circle" size={24} color={COLORS.onPrimary} />
-          <Text style={styles.addButtonText}>{t('admin.newPoll')}</Text>
-        </TouchableOpacity>
-      </View>
-
       <FlatList
         data={polls}
         renderItem={({ item }) => (
-          <View style={styles.pollCard}>
-            <Text style={styles.pollQuestion}>{item.question}</Text>
-            <Text style={styles.pollOptions}>
-              {item.options?.length || 0} options •
-              {item.end_date ? ` ${t('polls.endDate')} : ${item.end_date}` : ` ${t('polls.noEndDate')}`}
-            </Text>
-
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => openModal(item)}
-              >
-                <Ionicons name="create-outline" size={20} color={COLORS.primaryText} />
-                <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
-              </TouchableOpacity>
-            </View>
+          <View>
+            <AdminPollCard poll={item} onPress={() => openModal(item)} />
+            <AdminItemActions onEdit={() => openModal(item)} onDelete={() => handleDelete(item)} />
           </View>
         )}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        ListHeaderComponent={
+          <AdminListHeader
+            actionLabel={t('admin.newPoll')}
+            onAction={() => openModal()}
+            color={COLOR}
+            title={t('navigation.polls')}
+            count={loading ? null : polls.length}
+          />
+        }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={PALETTE.ink} style={styles.loader} />
+          ) : (
+            <EmptyState emoji="📊" title={t('admin.emptyPolls')} message={t('admin.emptyHint')} color={COLOR} />
+          )
+        }
       />
 
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        onRequestClose={requestCloseModal}
+      <AdminFormModal
+        visible={visible}
+        title={editing ? t('admin.editPoll') : t('admin.newPoll')}
+        color={COLOR}
+        onClose={requestClose}
+        footer={
+          <PopButton
+            title={editing ? t('common.update') : t('common.create')}
+            icon="checkmark"
+            color={COLOR}
+            loading={saving}
+            onPress={handleSave}
+          />
+        }
       >
-        <ScrollView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {editingPoll ? t('admin.editPoll') : t('admin.newPoll')}
-            </Text>
-            <TouchableOpacity onPress={requestCloseModal}>
-              <Ionicons name="close" size={28} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
+        <FormSection title={t('form.question')}>
+          <FormField
+            multiline
+            value={form.question}
+            onChangeText={(value) => setField('question', value)}
+            placeholder={t('admin.pollQuestionPlaceholder')}
+            style={styles.questionInput}
+          />
+        </FormSection>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>{t('form.question')} *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={question}
-              onChangeText={setQuestion}
-              placeholder="Posez votre question..."
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-            />
-
-            <Text style={styles.label}>{t('form.options')} * ({t('form.minOptions')})</Text>
-            {options.map((option, index) => (
-              <TextInput
-                key={index}
-                style={styles.input}
+        <FormSection title={t('form.options')} style={styles.optionsSection}>
+          <Text style={styles.sectionHint}>{t('form.minOptions')}</Text>
+          {form.options.map((option, index) => (
+            <View key={index} style={styles.optionInputRow}>
+              <View style={styles.letter}>
+                <Text style={styles.letterText}>{LETTERS[index]}</Text>
+              </View>
+              <FormField
                 value={option}
                 onChangeText={(value) => updateOption(index, value)}
                 placeholder={`${t('form.option')} ${index + 1}`}
-                placeholderTextColor={COLORS.textSecondary}
+                containerStyle={styles.optionField}
               />
-            ))}
-
-            <Text style={styles.label}>{t('form.endDate')} ({t('form.optional')})</Text>
-            <TextInput
-              style={styles.input}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder={`${t('form.dateFormat')} (${t('form.endDateHint')})`}
-              placeholderTextColor={COLORS.textSecondary}
+            </View>
+          ))}
+          {form.options.length < LETTERS.length ? (
+            <PopButton
+              compact
+              variant="light"
+              icon="add"
+              title={t('admin.addOption')}
+              onPress={addOption}
+              containerStyle={styles.addOption}
             />
-            <Text style={styles.hint}>
-              💡 Astuce : Laissez vide pour créer un sondage qui ne se termine jamais
-            </Text>
+          ) : null}
+        </FormSection>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>
-                {editingPoll ? t('common.update') : t('common.create')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </Modal>
-    </View >
+        <FormSection title={t('form.endDate')}>
+          <FormField
+            hint={t('form.endDateHint')}
+            value={form.endDate}
+            onChangeText={(value) => setField('endDate', value)}
+            placeholder={t('form.dateFormat')}
+            keyboardType="numbers-and-punctuation"
+          />
+        </FormSection>
+      </AdminFormModal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    padding: 12,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    ...SHADOWS.neon,
-  },
-  addButtonText: {
-    color: COLORS.onPrimary,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    backgroundColor: PALETTE.paper,
   },
   list: {
     padding: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
-  pollCard: {
-    backgroundColor: COLORS.surface,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
+  loader: {
+    marginTop: 40,
   },
-  pollQuestion: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  pollOptions: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 16,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceLight,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  editButtonText: {
-    color: COLORS.primaryText,
-    marginLeft: 4,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  deleteButtonText: {
-    color: COLORS.error,
-    marginLeft: 4,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  form: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 16,
-    color: COLORS.textSecondary,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
+  card: {
     marginBottom: 12,
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
+  head: {
+    backgroundColor: COLOR,
+    padding: 14,
+    borderBottomWidth: STROKE,
+    borderBottomColor: PALETTE.ink,
   },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 16,
+  headRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 32,
-    ...SHADOWS.neon,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  saveButtonText: {
-    color: COLORS.onPrimary,
+  deadline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deadlineText: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+    marginLeft: 4,
+  },
+  question: {
+    fontFamily: FONTS.display,
     fontSize: 18,
-    fontWeight: 'bold',
+    lineHeight: 25,
+    color: PALETTE.ink,
   },
-  hint: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    fontStyle: 'italic',
+  body: {
+    padding: 14,
+    paddingBottom: 4,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  letter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    backgroundColor: PALETTE.paper,
+  },
+  letterText: {
+    fontFamily: FONTS.varsity,
+    fontSize: 18,
+    lineHeight: 21,
+    color: PALETTE.ink,
+    includeFontPadding: false,
+  },
+  optionText: {
+    flex: 1,
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: 15,
+    color: PALETTE.ink,
+  },
+  questionInput: {
+    minHeight: 90,
+  },
+  optionsSection: {
+    paddingBottom: 16,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: PALETTE.inkSoft,
+    marginTop: -6,
+    marginBottom: 12,
+  },
+  optionInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  optionField: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  addOption: {
+    marginTop: 2,
+    alignSelf: 'flex-start',
   },
 });

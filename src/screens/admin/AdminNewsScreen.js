@@ -1,24 +1,45 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  Alert,
-  Image,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import Text, { TextInput } from '../../components/ui/AppText';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { supabase } from '../../config/supabase';
 import NewsCard from '../../components/NewsCard';
-import { showImagePicker, uploadImage } from '../../services/imageUpload';
-import { COLORS, SHADOWS } from '../../constants/theme';
+import { PopButton } from '../../components/ui/Pop';
+import { EmptyState } from '../../components/ui/Deco';
+import { PALETTE, SECTION_COLORS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
 import { useLanguage } from '../../context/LanguageContext';
+import { confirmAction, showMessage } from '../../utils/dialogs';
+import {
+  AdminFormModal,
+  AdminItemActions,
+  AdminListHeader,
+  ChipSelect,
+  FormField,
+  FormGroup,
+  FormSection,
+  ImagesField,
+  parseImages,
+  useAdminForm,
+  useImageUploader,
+} from './AdminKit';
+
+const COLOR = SECTION_COLORS.News;
+
+// Valeurs enregistrées telles quelles en base (affichées sur les cartes).
+const CATEGORIES = ['Actualité', 'Événement', 'Sport', 'Partenariat', 'Autre'];
+
+const EMPTY_FORM = {
+  title: '',
+  content: '',
+  category: 'Actualité',
+  images: [],
+};
+
+const formFromNews = (newsItem) => ({
+  title: newsItem.title ?? '',
+  content: newsItem.content ?? '',
+  category: newsItem.category || 'Actualité',
+  images: parseImages(newsItem.image),
+});
 
 /**
  * Écran admin pour gérer les actualités
@@ -28,19 +49,11 @@ export default function AdminNewsScreen() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingNews, setEditingNews] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const { visible, editing, form, setField, open, close, requestClose } = useAdminForm(EMPTY_FORM);
+  const { pick, uploading } = useImageUploader('news', (url) => setField('images', (prev) => [...prev, url]));
 
-  // Formulaire
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [category, setCategory] = useState('Actualité');
-  const [images, setImages] = useState([]);
-  const [uploading, setUploading] = useState(false);
-
-  const categories = ['Actualité', 'Événement', 'Sport', 'Partenariat', 'Autre'];
-
-  React.useEffect(() => {
+  useEffect(() => {
     loadNews();
   }, []);
 
@@ -54,7 +67,8 @@ export default function AdminNewsScreen() {
       if (error) throw error;
       setNews(data || []);
     } catch (error) {
-      Alert.alert(t('common.error'), 'Impossible de charger les actualités');
+      console.error('Erreur chargement actualités:', error);
+      showMessage(t('common.error'), t('admin.loadError'));
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -69,103 +83,37 @@ export default function AdminNewsScreen() {
     loadNews(true);
   };
 
-  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
-  const hasUnsavedChanges = () => {
-    return Boolean(title || content || images.length > 0);
-  };
-
-  const requestCloseModal = async () => {
-    if (hasUnsavedChanges()) {
-      const confirmClose = Platform.OS === 'web'
-        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
-        : await new Promise((resolve) => {
-            Alert.alert(
-              t('admin.discardChangesTitle'),
-              t('admin.discardChangesConfirm'),
-              [
-                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
-              ]
-            );
-          });
-      if (!confirmClose) return;
-    }
-    setModalVisible(false);
-  };
-
-  const openModal = (newsItem = null) => {
-    if (newsItem) {
-      setEditingNews(newsItem);
-      setTitle(newsItem.title);
-      setContent(newsItem.content);
-      setCategory(newsItem.category || 'Actualité');
-      try {
-        const parsedImages = newsItem.image ? JSON.parse(newsItem.image) : [];
-        if (Array.isArray(parsedImages)) {
-          setImages(parsedImages);
-        } else {
-          setImages(newsItem.image ? [newsItem.image] : []);
-        }
-      } catch (e) {
-        setImages(newsItem.image ? [newsItem.image] : []);
-      }
-    } else {
-      setEditingNews(null);
-      setTitle('');
-      setContent('');
-      setCategory('Actualité');
-      setImages([]);
-    }
-    setModalVisible(true);
-  };
-
-  const handleImagePicker = async () => {
-    try {
-      showImagePicker(async (selectedImage) => {
-        if (selectedImage) {
-          setUploading(true);
-          try {
-            const uploadedUrl = await uploadImage(selectedImage.uri, 'news');
-            setImages(prev => [...prev, uploadedUrl]);
-            Alert.alert(t('common.success'), 'Image ajoutée !');
-          } catch (error) {
-            console.error('Erreur upload:', error);
-            Alert.alert(t('common.error'), "Impossible d'uploader l'image.");
-          } finally {
-            setUploading(false);
-          }
-        }
-      });
-    } catch (error) {
-      Alert.alert(t('common.error'), error.message || 'Impossible de sélectionner une image');
-    }
-  };
+  const openModal = (newsItem = null) => open(newsItem, newsItem ? formFromNews(newsItem) : EMPTY_FORM);
 
   const handleSave = async () => {
+    const title = form.title.trim();
+    const content = form.content.trim();
+
     if (!title || !content) {
-      Alert.alert(t('common.error'), 'Veuillez remplir le titre et le contenu');
+      showMessage(t('common.error'), t('admin.newsRequired'));
       return;
     }
 
+    setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
       const newsData = {
         title,
         content,
-        category: category || 'Actualité',
-        image: JSON.stringify(images),
+        category: form.category || 'Actualité',
+        image: JSON.stringify(form.images),
         author_id: user?.id,
       };
 
-      if (editingNews) {
+      if (editing) {
         const { error } = await supabase
           .from('news')
           .update(newsData)
-          .eq('id', editingNews.id);
+          .eq('id', editing.id);
 
         if (error) throw error;
-        Alert.alert(t('common.success'), t('admin.saveSuccess'));
+        showMessage(t('common.success'), t('admin.saveSuccess'));
       } else {
         const { error } = await supabase
           .from('news')
@@ -176,374 +124,159 @@ export default function AdminNewsScreen() {
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewNews(title);
 
-        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
+        showMessage(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
-      setModalVisible(false);
+      close();
       loadNews();
     } catch (error) {
-      Alert.alert(t('common.error'), error.message);
+      showMessage(t('common.error'), error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (newsId) => {
-    Alert.alert(
-      t('admin.deleteConfirm'),
-      t('admin.deleteNewsConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('news')
-                .delete()
-                .eq('id', newsId);
+  const handleDelete = async (newsItem) => {
+    const confirmed = await confirmAction({
+      title: t('admin.deleteConfirm'),
+      message: t('admin.deleteNewsConfirm'),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-              if (error) throw error;
-              loadNews();
-            } catch (error) {
-              Alert.alert(t('common.error'), t('admin.deleteError'));
-            }
-          },
-        },
-      ]
-    );
+    try {
+      const { error } = await supabase
+        .from('news')
+        .delete()
+        .eq('id', newsItem.id);
+
+      if (error) throw error;
+      loadNews();
+    } catch (error) {
+      showMessage(t('common.error'), t('admin.deleteError'));
+    }
   };
+
+  const renderNews = ({ item }) => (
+    <View>
+      <NewsCard
+        news={{
+          ...item,
+          author: 'BDE',
+          date: item.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        }}
+        onPress={() => openModal(item)}
+        containerStyle={styles.card}
+      />
+      <AdminItemActions onEdit={() => openModal(item)} onDelete={() => handleDelete(item)} />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
-          <Ionicons name="add-circle" size={24} color={COLORS.onPrimary} />
-          <Text style={styles.addButtonText}>{t('admin.newNews')}</Text>
-        </TouchableOpacity>
-      </View>
-
       <FlatList
         data={news}
-        renderItem={({ item }) => (
-          <View style={styles.newsCard}>
-            <NewsCard
-              news={{
-                ...item,
-                author: 'BDE',
-                date: item.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-              }}
-              onPress={() => openModal(item)}
-            />
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => openModal(item)}
-              >
-                <Ionicons name="create-outline" size={20} color={COLORS.primaryText} />
-                <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderNews}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        ListHeaderComponent={
+          <AdminListHeader
+            actionLabel={t('admin.newNews')}
+            onAction={() => openModal()}
+            color={COLOR}
+            title={t('navigation.news')}
+            count={loading ? null : news.length}
+          />
+        }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={PALETTE.ink} style={styles.loader} />
+          ) : (
+            <EmptyState emoji="📰" title={t('admin.emptyNews')} message={t('admin.emptyHint')} color={COLOR} />
+          )
+        }
       />
 
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        onRequestClose={requestCloseModal}
+      <AdminFormModal
+        visible={visible}
+        title={editing ? t('admin.editNews') : t('admin.newNews')}
+        color={COLOR}
+        onClose={requestClose}
+        footer={
+          <PopButton
+            title={editing ? t('common.update') : t('common.create')}
+            icon="checkmark"
+            color={COLOR}
+            loading={saving}
+            onPress={handleSave}
+          />
+        }
       >
-        <ScrollView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {editingNews ? t('admin.editNews') : t('admin.newNews')}
-            </Text>
-            <TouchableOpacity onPress={requestCloseModal}>
-              <Ionicons name="close" size={28} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.form}>
-            <Text style={styles.label}>{t('form.title')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Titre de l'actualité"
-              placeholderTextColor={COLORS.textSecondary}
+        <FormSection title={t('admin.sectionInfo')}>
+          <FormField
+            label={t('form.title')}
+            required
+            value={form.title}
+            onChangeText={(value) => setField('title', value)}
+            placeholder={t('admin.newsTitlePlaceholder')}
+          />
+          <FormField
+            label={t('form.content')}
+            required
+            multiline
+            value={form.content}
+            onChangeText={(value) => setField('content', value)}
+            placeholder={t('admin.newsContentPlaceholder')}
+            style={styles.contentInput}
+          />
+          <FormGroup label={t('form.category')}>
+            <ChipSelect
+              options={CATEGORIES}
+              value={form.category}
+              onChange={(value) => setField('category', value)}
+              color={COLOR}
             />
+          </FormGroup>
+        </FormSection>
 
-            <Text style={styles.label}>{t('form.content')} *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={content}
-              onChangeText={setContent}
-              placeholder="Contenu de l'actualité"
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              numberOfLines={6}
-            />
-
-            <Text style={styles.label}>{t('form.category')}</Text>
-            <View style={styles.categoryContainer}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.categoryButton,
-                    category === cat && styles.categoryButtonActive,
-                  ]}
-                  onPress={() => setCategory(cat)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryButtonText,
-                      category === cat && styles.categoryButtonTextActive,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>{t('admin.images')}</Text>
-            <View style={styles.imageSection}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
-                {images.map((img, index) => (
-                  <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri: img }} style={styles.previewImage} />
-                    <TouchableOpacity
-                      style={styles.removeImageButtonAbsolute}
-                      onPress={() => setImages(prev => prev.filter((_, i) => i !== index))}
-                    >
-                      <Ionicons name="close-circle" size={24} color={COLORS.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-
-                <TouchableOpacity
-                  style={styles.addImageButton}
-                  onPress={handleImagePicker}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <ActivityIndicator color={COLORS.primaryText} />
-                  ) : (
-                    <Ionicons name="add" size={32} color={COLORS.primaryText} />
-                  )}
-                </TouchableOpacity>
-              </ScrollView>
-
-              <Text style={styles.imageHint}>
-                {t('admin.imageHint')}
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>
-                {editingNews ? t('common.update') : t('common.create')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </Modal>
-    </View >
+        <FormSection title={t('admin.images')} style={styles.imagesSection}>
+          <ImagesField
+            images={form.images}
+            onAdd={pick}
+            onRemove={(index) => setField('images', (prev) => prev.filter((_, i) => i !== index))}
+            uploading={uploading}
+            hint={t('admin.imageHint')}
+          />
+        </FormSection>
+      </AdminFormModal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    padding: 12,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    ...SHADOWS.neon,
-  },
-  addButtonText: {
-    color: COLORS.onPrimary,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    backgroundColor: PALETTE.paper,
   },
   list: {
     padding: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
-  newsCard: {
-    marginBottom: 16,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  editButtonText: {
-    color: COLORS.primaryText,
-    marginLeft: 4,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  deleteButtonText: {
-    color: COLORS.error,
-    marginLeft: 4,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  form: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 16,
-    color: COLORS.textSecondary,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
-  },
-  textArea: {
-    height: 150,
-    textAlignVertical: 'top',
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  categoryButtonActive: {
-    backgroundColor: COLORS.primary,
-    ...SHADOWS.neon,
-  },
-  categoryButtonText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  categoryButtonTextActive: {
-    color: COLORS.onPrimary,
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 32,
-    ...SHADOWS.neon,
-  },
-  saveButtonText: {
-    color: COLORS.onPrimary,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  imageHint: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
-  imageList: {
-    flexDirection: 'row',
+  card: {
     marginBottom: 12,
   },
-  imageWrapper: {
-    marginRight: 12,
-    position: 'relative',
+  loader: {
+    marginTop: 40,
   },
-  previewImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
+  contentInput: {
+    minHeight: 160,
   },
-  removeImageButtonAbsolute: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-  },
-  addImageButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderStyle: 'dashed',
+  imagesSection: {
+    paddingBottom: 16,
   },
 });

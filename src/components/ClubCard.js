@@ -60,15 +60,16 @@ export function ClubPatch({ club, size = 76, rotate = -6 }) {
  * infos (membres, président).
  * @param {Object} club - Objet club
  * @param {Function} onPress - Fonction appelée au clic
+ * @param {Object} containerStyle - Style du conteneur (marges), optionnel
  */
-const ClubCard = ({ club, onPress }) => {
+const ClubCard = ({ club, onPress, containerStyle }) => {
   const { t } = useLanguage();
 
   return (
     <PopPressable
       onPress={onPress}
       radius={22}
-      containerStyle={styles.container}
+      containerStyle={[styles.container, containerStyle]}
       style={styles.card}
       accessibilityLabel={club.name}
     >

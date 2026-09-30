@@ -32,11 +32,13 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 - `src/navigation/AppNavigator.js` : pile racine native-stack (`MainTabs` + `Profile`).
   - `MainTabs` utilise un **navigateur maison** `CategoryPager` (`useNavigationBuilder` + `TabRouter`). Il rend Events / Polls / News / Clubs côte à côte dans une rangée `Animated` translatée ; chaque catégorie a sa propre native-stack.
-  - Admin : pile séparée, affichée via l'état `adminActive`, non swipeable.
+  - Admin (comptes admin seulement) : route `Admin` du même navigateur, déclarée en dernier et rendue hors de la rangée swipeable. **Ne pas rendre `AdminStack` directement dans `CategoryPagerView`** : deux navigateurs sous le même écran lèvent « Another navigator is already registered for this container » (c'était la cause de la panne de l'admin).
   - Barre d'onglets maison : `CustomBottomTabBar`.
 - **Swipe entre catégories** : `Gesture.Pan()` de react-native-gesture-handler (`activeOffsetX ±10`, `failOffsetY ±20`, `runOnJS`). **Ne pas revenir à PanResponder** : sur Android, la décision prise en JS arrive trop tard, et la FlatList native vole le geste dès environ 20° de biais (cause historique du bug, détaillée dans `passation.md`). Le `GestureHandlerRootView` d'`App.js` est requis.
 - Ouverture du Profil depuis les headers : `ProfileNavContext` / `useOpenProfile` (`src/navigation/ProfileNav.js`).
 - `expo-notifications` est chargé par un `require` différé, hors Expo Go : son simple import y affiche une erreur.
+- Statut admin : vérifié dans `AppNavigator` à chaque changement d'**utilisateur** (pas d'objet `session`, renouvelé à chaque rafraîchissement du jeton).
+- Écrans admin : kit partagé `src/screens/admin/AdminKit.js` (`useAdminForm`, `useImageUploader`, `AdminFormModal`, `FormSection`, `FormField`, `ChipSelect`, `ImagesField`, `AdminListHeader`, `AdminItemActions`). Dialogues : `src/utils/dialogs.js` (`showMessage`, `confirmAction`), car `Alert.alert` ne fait rien sur web.
 - i18n : `src/translations/fr.js` **et** `en.js`, `t('section.cle', { param })` avec `{{param}}` dans les chaînes. Pluriels via `src/utils/plural.js`.
 - Dates : `dateParts()` et `formatTime()` dans `src/utils/dateUtils.js`.
 
@@ -56,7 +58,8 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 - AVD `Medium_Phone_API_36.1` (SDK Android dans `%LOCALAPPDATA%\Android\Sdk`). APK Expo Go 57 déjà téléchargé : `%TEMP%\Expo-Go-57.0.9.apk` (URLs des APK par SDK : https://api.expo.dev/v2/versions/latest, champ `androidClientUrl`). Le réinstaller si l'émulateur a été coupé brutalement. Si le démarrage bloque sur « Loading snapshot », relancer à froid avec `-no-snapshot`.
 - L'utilisateur garde souvent son propre Metro sur le port 8081 : ne pas y toucher et lancer un Metro de test à part, avec `npx expo start --go --offline --port 8082`, puis `adb reverse tcp:8082 tcp:8082` et l'intent `exp://127.0.0.1:8082` avec `-p host.exp.exponent`.
-- Aucun identifiant n'est disponible. Pour voir l'app connectée, ajouter temporairement dans `AppNavigator` une fausse `session` : un objet **constant**, sinon on obtient une boucle de rendu. La retirer avant tout commit. Les écrans admin et les états connectés ne sont pas vérifiables de cette façon.
+- Aucun identifiant n'est disponible. Pour voir l'app connectée (admin compris), remplacer temporairement dans la `value` d'`AuthContext` : `session` et `user` par un objet **constant** (sinon boucle de rendu), `loading: false`, `isAdmin: async () => true`. Le retirer avant tout commit. Les lectures publiques (événements, sondages, clubs) remontent ; les propositions de clubs non (RLS). **Ne jamais valider un formulaire admin** dans ce mode : écriture en base de production et notification push à tous les utilisateurs.
+- Ne pas lancer Metro avec `CI=1` : le rechargement à chaud est alors désactivé.
 - Tester les gestes avec `adb shell input swipe` ; un swipe en biais simule un vrai pouce.
 
 ## Historique récent (septembre 2026, tout est sur master et poussé)
@@ -67,6 +70,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - `58d68ed` : `branding.md` + renommage de l'app en NØVYX (`app.json`, pages légales, fiche Play Store).
 - `9ea3fac` : ce fichier.
 - Migration Expo SDK 54 → 57 (RN 0.86) : dépendances alignées, `react-native-calendars` 1.1314 (supprime le doublon `safe-area-context`), splash via plugin, `@react-navigation/bottom-tabs` retiré (inutilisé). Vérifiée sur émulateur avec Expo Go 57.
+- Branche `fix/admin-panel` (pas encore fusionnée, septembre 2026) : réparation de l'espace admin, cassé depuis `f9f0dfa` (onglet Admin → « Another navigator is already registered »), refonte NØVYX des 5 écrans admin, choix d'image en galerie réparé (`mediaTypes`), pastilles d'onglet arrondies sur Android. Vérifiée sur émulateur avec une fausse session admin.
 
 ## Points ouverts
 
@@ -75,4 +79,6 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - Captures et bannière (`play-store/feature-graphic.png`) de la fiche Play Store à refaire : elles montrent l'ancien design.
 - `play-store/FICHE_PLAY_STORE.md` contient les identifiants du compte testeur (administrateur) dans un dépôt public : mot de passe à changer, identifiants à sortir du dépôt.
 - `GalleryScreen` est importé mais jamais routé (code mort).
+- Formulaires admin : l'affichage du clavier virtuel dans les modales (champs du bas masqués ou non) n'a pas été vérifié sur un vrai téléphone (l'émulateur utilise un clavier matériel).
+- `imageUpload.js` : le choix « Galerie / Appareil photo » et ses messages d'erreur sont en dur, en français et au vouvoiement.
 - Web uniquement : un drag souris qui commence et finit sur une carte l'ouvre au relâchement (react-native-web déclenche `onPress` sur `click`). Problème préexistant, le mobile n'est pas concerné.

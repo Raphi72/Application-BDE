@@ -182,7 +182,7 @@ Ordre du cycle : `tangerine → periwinkle → sun → lime → bubblegum → mi
 
 | Hex | Usage |
 |---|---|
-| `#FFF3CF` | Fond d'un champ de saisie **focus** (écrans d'accès) |
+| `#FFF3CF` | Fond d'un champ de saisie **focus** (écrans d'accès, formulaires admin) |
 | `#FFE3DD` | Boîte d'erreur, boîte d'avertissement de suppression de compte |
 | `#FFC9BF` | Dernier avertissement avant suppression du compte |
 | `#C9BBA7` | Jours hors mois dans le calendrier |
@@ -471,6 +471,22 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | `AuthBrand` | Logotype géant **ou** petit logotype + titre, pastille BDE AIVANCITY, sous-titre |
 | `authStyles` | Champs : fond blanc, hauteur 58, rayon 16, contour 2.5. Focus : fond `#FFF3CF`, contour 3. Erreur : boîte `#FFE3DD`. Lien : Space Grotesk 700, souligné, encre |
 
+### Admin — [`screens/admin/AdminKit.js`](src/screens/admin/AdminKit.js)
+
+| Composant / hook | Rôle |
+|---|---|
+| `AdminListHeader` | Haut de liste : `PopButton` « Nouveau… » à la couleur de la rubrique gérée, puis `SectionTitle` avec compteur |
+| `AdminItemActions` | Sous chaque carte : « Modifier » (`light`) et « Supprimer » (`danger`), boutons compacts côte à côte |
+| `AdminFormModal` | Modale plein écran translucide : `DetailHeader` à la couleur de la rubrique avec bouton fermer rond, contenu défilant, barre d'action fixée en bas (`footer`) |
+| `FormSection` | Bloc blanc, rayon 20, contour 2.5, titre Display 18 |
+| `FormField` / `FormGroup` | Libellé Space Grotesk 600 (astérisque si obligatoire), aide `inkSoft`, champ papier rayon 14 contour 2 (fond `#FFF3CF` au focus) |
+| `ChipSelect` | Puces en pilule contour 2, Varsity 16 ; choisie : couleur de la rubrique + coche |
+| `ImagesField` | Vignettes de 104 px (rayon 14, contour 2), retrait par pastille encre, 1ʳᵉ image marquée COUVERTURE, tuile d'ajout en pointillés |
+| `useAdminForm` | État du formulaire ; ne demande confirmation à la fermeture que si la saisie a changé |
+| `useImageUploader` | Galerie / appareil photo puis upload Storage |
+
+Confirmations et messages : `confirmAction` / `showMessage` ([`utils/dialogs.js`](src/utils/dialogs.js)), qui fonctionnent aussi sur web.
+
 ### Composants métier
 
 | Composant | Fichier | Description |
@@ -503,7 +519,7 @@ L'ombre prend sa place grâce au padding du conteneur : les marges passées dans
 | **Charte** (modale) | Bandeau `lime` + dents de scie, sections en cartes numérotées 01 à 05 (carrés colorés penchés) |
 | **Proposer un club** | Bloc charte `lime`, sections blanches contour 2.5, champs papier contour 2, puces de catégorie en pilule (sélection `lime`) |
 | **Profil** | Carte de membre (encre, bandes varsity, avatar `bubblegum`, statut MEMBRE ou ADMINISTRATEUR), Réglages, Déconnexion (light), « Zone sensible » avec lien de suppression discret |
-| **Admin** | Header `bubblegum`, menu en cartes pop avec carré d'icône à la couleur de chaque rubrique |
+| **Admin** | Header `bubblegum`, menu en cartes pop avec carré d'icône à la couleur de chaque rubrique. Sous-écrans (header de détail `bubblegum`) : bouton de création à la couleur de la rubrique gérée, carte publique en aperçu + Modifier / Supprimer. Formulaires en `AdminFormModal` à la couleur de la rubrique (propositions : `mint`). Statuts de proposition en pastilles : en attente `sun`, en révision `periwinkle`, approuvée `lime`, refusée `cherry` |
 
 ---
 

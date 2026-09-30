@@ -60,6 +60,10 @@ const AuthStack = createNativeStackNavigator();
 const USE_NATIVE_DRIVER = false;
 const WINDOW_WIDTH = Dimensions.get('window').width;
 
+// Route de l'espace admin dans le navigateur de catégories : déclarée en
+// dernier, affichée à part (hors de la rangée swipeable).
+const ADMIN_ROUTE = 'Admin';
+
 // Les 4 catégories principales, swipeables horizontalement, dans cet ordre.
 const SWIPE_TABS = [
   { name: 'Events', translationKey: 'navigation.events', icon: 'calendar', component: EventsScreen },
@@ -91,19 +95,37 @@ const SWIPE_FAIL_DY = 20;
  * le geste fait suivre au doigt (aucun react-native-pager-view). Comme chaque
  * scène provient du même navigateur (un seul arbre de navigation), le bouton
  * retour Android, le focus et useFocusEffect se comportent correctement.
- * Admin reste un écran à part (affiché/masqué via adminActive) et la barre du
- * bas reste synchronisée dans les deux sens (swipe <-> onglet).
+ *
+ * Admin (comptes admin uniquement) est une route de ce même navigateur, rendue
+ * à part, hors de la rangée swipeable. Elle doit rester une route : sa pile
+ * est un navigateur, et react-navigation interdit deux navigateurs sous le
+ * même écran (« Another navigator is already registered for this container »).
+ * La barre du bas reste synchronisée dans les deux sens (swipe <-> onglet).
  */
-function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
-  const { t } = useLanguage();
-  const [adminActive, setAdminActive] = useState(false);
+function CategoryPagerView({ state, navigation, descriptors }) {
   const [width, setWidth] = useState(WINDOW_WIDTH);
-  const routeCount = state.routes.length;
+  const pageRoutes = state.routes.filter((route) => route.name !== ADMIN_ROUTE);
+  const adminRoute = state.routes.find((route) => route.name === ADMIN_ROUTE);
+  const adminActive = state.routes[state.index].name === ADMIN_ROUTE;
+  const pageCount = pageRoutes.length;
 
-  const translateX = useRef(new Animated.Value(-state.index * WINDOW_WIDTH)).current;
+  // Page affichée par la rangée. Admin étant déclarée en dernier, les index
+  // des catégories coïncident avec ceux de state.routes. Pendant qu'Admin est
+  // affichée, la rangée (masquée) garde sa dernière catégorie : au retour, elle
+  // n'a donc pas à traverser toutes les pages.
+  const lastPageRef = useRef(adminActive ? 0 : state.index);
+  if (!adminActive) lastPageRef.current = state.index;
+  const pageIndex = lastPageRef.current;
+
+  // La pile admin n'est montée qu'à la première visite, puis reste montée
+  // (masquée) pour retrouver l'écran où on l'avait laissée.
+  const adminVisitedRef = useRef(false);
+  if (adminActive) adminVisitedRef.current = true;
+
+  const translateX = useRef(new Animated.Value(-pageIndex * WINDOW_WIDTH)).current;
   // Miroirs synchrones lus depuis les callbacks du geste (closures figées).
   const widthRef = useRef(width);
-  const indexRef = useRef(state.index);
+  const indexRef = useRef(pageIndex);
 
   useEffect(() => {
     widthRef.current = width;
@@ -114,21 +136,21 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
   // L'animation part de la valeur courante de translateX (position du doigt),
   // ce qui enchaîne naturellement le suivi du doigt puis le snap.
   useEffect(() => {
-    indexRef.current = state.index;
+    indexRef.current = pageIndex;
     Animated.spring(translateX, {
-      toValue: -state.index * width,
+      toValue: -pageIndex * width,
       useNativeDriver: USE_NATIVE_DRIVER,
       bounciness: 0,
       speed: 14,
     }).start();
-  }, [state.index, width, translateX]);
+  }, [pageIndex, width, translateX]);
 
   // Change de catégorie d'un cran (ou revient à la page courante si pas de
   // changement possible). navigation.navigate met à jour state.index, ce qui
   // déclenche l'animation via l'effet ci-dessus.
   const goToIndex = useCallback(
     (index) => {
-      const clamped = Math.max(0, Math.min(routeCount - 1, index));
+      const clamped = Math.max(0, Math.min(pageCount - 1, index));
       if (clamped === indexRef.current) {
         // Pas de changement : on ramène la rangée sur la page courante.
         Animated.spring(translateX, {
@@ -141,7 +163,7 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
       }
       navigation.navigate(state.routes[clamped].name);
     },
-    [navigation, routeCount, state.routes, translateX]
+    [navigation, pageCount, state.routes, translateX]
   );
 
   // Pendant le geste : le contenu suit le doigt, borné à la page courante ±1
@@ -151,13 +173,13 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
       const w = widthRef.current;
       const base = -indexRef.current * w;
       const upperBound = -Math.max(0, indexRef.current - 1) * w; // vers la gauche (précédent)
-      const lowerBound = -Math.min(routeCount - 1, indexRef.current + 1) * w; // vers la droite (suivant)
+      const lowerBound = -Math.min(pageCount - 1, indexRef.current + 1) * w; // vers la droite (suivant)
       let next = base + translationX;
       if (next > upperBound) next = upperBound;
       if (next < lowerBound) next = lowerBound;
       translateX.setValue(next);
     },
-    [routeCount, translateX]
+    [pageCount, translateX]
   );
 
   // Au relâchement : une distance OU une vitesse suffisante change de page d'un
@@ -202,7 +224,7 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
 
   const openProfile = useCallback(() => navigation.navigate('Profile'), [navigation]);
 
-  const tabs = state.routes.map((route) => {
+  const tabs = pageRoutes.map((route) => {
     const { options } = descriptors[route.key];
     return {
       name: route.name,
@@ -227,11 +249,11 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
               style={{
                 flex: 1,
                 flexDirection: 'row',
-                width: width * routeCount,
+                width: width * pageCount,
                 transform: [{ translateX }],
               }}
             >
-              {state.routes.map((route) => (
+              {pageRoutes.map((route) => (
                 <View key={route.key} style={{ width, height: '100%' }}>
                   {descriptors[route.key].render()}
                 </View>
@@ -240,23 +262,20 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
           </View>
         </GestureDetector>
 
-        {isAdmin && adminActive && (
-          <View style={{ flex: 1 }}>
-            <AdminStack />
+        {adminRoute && adminVisitedRef.current && (
+          <View style={[styles.adminScene, { display: adminActive ? 'flex' : 'none' }]}>
+            {descriptors[adminRoute.key].render()}
           </View>
         )}
 
         <CustomBottomTabBar
           tabs={tabs}
           activeTabName={state.routes[state.index].name}
-          onSelectTab={(name) => {
-            setAdminActive(false);
-            navigation.navigate(name);
-          }}
-          isAdmin={isAdmin}
+          onSelectTab={(name) => navigation.navigate(name)}
+          isAdmin={Boolean(adminRoute)}
           adminActive={adminActive}
-          adminLabel={t('navigation.admin')}
-          onSelectAdmin={() => setAdminActive(true)}
+          adminLabel={adminRoute ? descriptors[adminRoute.key].options.title : undefined}
+          onSelectAdmin={() => navigation.navigate(ADMIN_ROUTE)}
         />
       </View>
     </ProfileNavContext.Provider>
@@ -269,7 +288,7 @@ function CategoryPagerView({ state, navigation, descriptors, isAdmin }) {
  * pour permettre le pager côte à côte, tout en fournissant un vrai conteneur
  * de scène par écran et en restant un seul arbre de navigation.
  */
-function CategoryPagerNavigator({ id, initialRouteName, children, screenOptions, isAdmin }) {
+function CategoryPagerNavigator({ id, initialRouteName, children, screenOptions }) {
   const { state, navigation, descriptors, NavigationContent } = useNavigationBuilder(TabRouter, {
     id,
     initialRouteName,
@@ -279,12 +298,7 @@ function CategoryPagerNavigator({ id, initialRouteName, children, screenOptions,
 
   return (
     <NavigationContent>
-      <CategoryPagerView
-        state={state}
-        navigation={navigation}
-        descriptors={descriptors}
-        isAdmin={isAdmin}
-      />
+      <CategoryPagerView state={state} navigation={navigation} descriptors={descriptors} />
     </NavigationContent>
   );
 }
@@ -294,13 +308,13 @@ const CategoryPager = createCategoryPagerNavigator();
 
 /**
  * Navigation pour les utilisateurs authentifiés : les 4 catégories dans notre
- * pager swipeable maison. Admin (non swipeable) et Profil sont gérés dans
- * CategoryPagerView / la pile externe.
+ * pager swipeable maison, plus l'espace Admin (non swipeable) pour les comptes
+ * admin. Profil est géré par la pile externe.
  */
 function MainTabs({ isAdmin }) {
   const { t } = useLanguage();
   return (
-    <CategoryPager.Navigator isAdmin={isAdmin}>
+    <CategoryPager.Navigator>
       {SWIPE_TABS.map((tab) => (
         <CategoryPager.Screen
           key={tab.name}
@@ -309,6 +323,13 @@ function MainTabs({ isAdmin }) {
           options={{ title: t(tab.translationKey), icon: tab.icon }}
         />
       ))}
+      {isAdmin && (
+        <CategoryPager.Screen
+          name={ADMIN_ROUTE}
+          component={AdminStack}
+          options={{ title: t('navigation.admin') }}
+        />
+      )}
     </CategoryPager.Navigator>
   );
 }
@@ -420,38 +441,38 @@ function AuthNavigator() {
 export default function AppNavigator() {
   const { session, loading, isAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { t } = useLanguage();
+  const userId = session?.user?.id ?? null;
   const [adminStatus, setAdminStatus] = React.useState(false);
-  // Reste à false tant que le statut admin n'a pas été résolu pour cette session,
-  // afin de ne jamais afficher les tabs avant de savoir si l'onglet Admin doit y figurer
-  // (évite un redimensionnement visible de la tab bar juste après le chargement).
-  const [adminChecked, setAdminChecked] = React.useState(false);
+  // Utilisateur pour lequel adminStatus a été résolu. Tant qu'il ne correspond
+  // pas à l'utilisateur connecté, on n'affiche pas les onglets : on ne sait pas
+  // encore si l'onglet Admin doit y figurer.
+  // La vérification dépend de l'utilisateur et non de l'objet session : Supabase
+  // en fournit un nouveau à chaque rafraîchissement du jeton (toutes les heures,
+  // au retour au premier plan…). Relancer la vérification à ce moment-là
+  // démontait toute la navigation, et un admin perdait le formulaire en cours.
+  const [adminCheckedFor, setAdminCheckedFor] = React.useState(null);
 
   React.useEffect(() => {
-    let cancelled = false;
-    setAdminChecked(false);
+    if (!userId) {
+      setAdminStatus(false);
+      setAdminCheckedFor(null);
+      return undefined;
+    }
 
-    const checkAdmin = async () => {
-      if (session) {
-        const admin = await isAdmin();
-        if (!cancelled) {
-          setAdminStatus(admin);
-          setAdminChecked(true);
-        }
-      } else {
-        if (!cancelled) {
-          setAdminStatus(false);
-          setAdminChecked(true);
-        }
+    let cancelled = false;
+    isAdmin().then((admin) => {
+      if (!cancelled) {
+        setAdminStatus(admin);
+        setAdminCheckedFor(userId);
       }
-    };
-    checkAdmin();
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [userId]);
 
-  if (loading || (session && !adminChecked)) {
+  if (loading || (userId && adminCheckedFor !== userId)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -516,6 +537,9 @@ const styles = StyleSheet.create({
   pagerViewport: {
     flex: 1,
     overflow: 'hidden',
+  },
+  adminScene: {
+    flex: 1,
   },
   menu: {
     padding: 16,

@@ -16,8 +16,9 @@ import { useLanguage } from '../context/LanguageContext';
  * @param {Object} news - Objet actualité
  * @param {Function} onPress - Fonction appelée au clic
  * @param {boolean} featured - Actualité mise en avant
+ * @param {Object} containerStyle - Style du conteneur (marges), optionnel
  */
-const NewsCard = ({ news, onPress, featured = false }) => {
+const NewsCard = ({ news, onPress, featured = false, containerStyle }) => {
   const { t, language } = useLanguage();
   const image = firstImage(news.image);
   const parts = dateParts(news.date, language);
@@ -27,7 +28,7 @@ const NewsCard = ({ news, onPress, featured = false }) => {
       onPress={onPress}
       radius={20}
       color={featured ? SECTION_COLORS.News : PALETTE.white}
-      containerStyle={styles.container}
+      containerStyle={[styles.container, containerStyle]}
       accessibilityLabel={news.title}
     >
       {image ? <Image source={{ uri: image }} style={[styles.image, featured && styles.imageFeatured]} /> : null}
