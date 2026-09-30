@@ -1,48 +1,77 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import Text, { TextInput } from '../../components/ui/AppText';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Text from '../../components/ui/AppText';
 import { supabase } from '../../config/supabase';
-import { COLORS, SHADOWS, PALETTE } from '../../constants/theme';
+import { PopButton, PopPressable } from '../../components/ui/Pop';
+import { EmptyState, SectionTitle, Sticker } from '../../components/ui/Deco';
+import { FONTS, PALETTE, STROKE } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
 import { useLanguage } from '../../context/LanguageContext';
+import { dateParts } from '../../utils/dateUtils';
+import { confirmAction, showMessage } from '../../utils/dialogs';
+import { AdminFormModal, ChipSelect, FormField, FormSection } from './AdminKit';
 
-// Helper pour les alertes cross-platform
-const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
-  if (Platform.OS === 'web') {
-    // Pour les confirmations avec plusieurs boutons
-    if (buttons.length > 1) {
-      const confirmButton = buttons.find(b => b.style !== 'cancel');
-      const result = window.confirm(`${title}\n\n${message}`);
-      if (result && confirmButton && confirmButton.onPress) {
-        confirmButton.onPress();
-      }
-    } else {
-      window.alert(`${title}\n\n${message}`);
-      if (buttons[0] && buttons[0].onPress) {
-        buttons[0].onPress();
-      }
-    }
-  } else {
-    Alert.alert(title, message, buttons);
-  }
+// Couleur de l'entrée « Propositions » du menu admin
+const COLOR = PALETTE.mint;
+
+// Pastille de chaque statut : fond vif, texte encre (le libellé porte l'info)
+const STATUS_COLORS = {
+  pending: PALETTE.sun,
+  under_review: PALETTE.periwinkle,
+  approved: PALETTE.lime,
+  rejected: PALETTE.cherry,
 };
+
+const STATUS_KEYS = {
+  pending: 'admin.pending',
+  under_review: 'admin.underReview',
+  approved: 'admin.approved',
+  rejected: 'admin.rejected',
+};
+
+function StatusSticker({ status, style }) {
+  const { t } = useLanguage();
+  return (
+    <Sticker
+      label={STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status}
+      color={STATUS_COLORS[status] ?? PALETTE.white}
+      rotate={3}
+      small
+      style={style}
+    />
+  );
+}
+
+function InfoRow({ icon, children }) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={15} color={PALETTE.ink} />
+      <Text style={styles.infoText} numberOfLines={1}>
+        {children}
+      </Text>
+    </View>
+  );
+}
+
+// Libellé + valeur dans le détail d'une proposition
+function InfoField({ label, children, hint }) {
+  return (
+    <View style={styles.field}>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      <Text style={styles.fieldValue} selectable>
+        {children}
+      </Text>
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
+}
 
 /**
  * Écran admin pour gérer les propositions de clubs
  */
 export default function AdminClubProposalsScreen() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true); // premier chargement uniquement
   const [refreshing, setRefreshing] = useState(false); // pull-to-refresh manuel
@@ -50,7 +79,8 @@ export default function AdminClubProposalsScreen() {
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
-  const [processing, setProcessing] = useState(false);
+  // Action en cours ('review' | 'approve' | 'reject'), pour son indicateur
+  const [processing, setProcessing] = useState(null);
   const [filter, setFilter] = useState('pending'); // pending, under_review, approved, rejected, all
 
   useEffect(() => {
@@ -74,7 +104,7 @@ export default function AdminClubProposalsScreen() {
       setProposals(data || []);
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert(t('common.error'), 'Impossible de charger les propositions');
+      showMessage(t('common.error'), t('admin.loadError'));
     } finally {
       if (isFirstLoad.current) {
         isFirstLoad.current = false;
@@ -98,22 +128,15 @@ export default function AdminClubProposalsScreen() {
   const handleApprove = async () => {
     if (!selectedProposal) return;
 
-    const confirmApprove = Platform.OS === 'web' 
-      ? window.confirm(`Approuver la proposition\n\nÊtes-vous sûr de vouloir approuver le club "${selectedProposal.club_name}" ?\n\nUn nouveau club sera créé automatiquement.`)
-      : await new Promise((resolve) => {
-          Alert.alert(
-            'Approuver la proposition',
-            `Êtes-vous sûr de vouloir approuver le club "${selectedProposal.club_name}" ?\n\nUn nouveau club sera créé automatiquement.`,
-            [
-              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-              { text: t('admin.approve'), onPress: () => resolve(true) },
-            ]
-          );
-        });
+    const confirmed = await confirmAction({
+      title: t('admin.approveTitle'),
+      message: t('admin.approveMessage', { name: selectedProposal.club_name }),
+      confirmLabel: t('admin.approve'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (!confirmed) return;
 
-    if (!confirmApprove) return;
-
-    setProcessing(true);
+    setProcessing('approve');
     try {
       // Créer le club
       const { error: clubError } = await supabase
@@ -143,14 +166,14 @@ export default function AdminClubProposalsScreen() {
       // Envoyer une notification à tous les utilisateurs
       await notificationService.notifyNewClub(selectedProposal.club_name);
 
-      showAlert(t('common.success'), `${t('admin.clubCreatedSuccess')} ${t('admin.notificationSent')}`);
+      showMessage(t('common.success'), `${t('admin.clubCreatedSuccess')} ${t('admin.notificationSent')}`);
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert(t('common.error'), 'Impossible d\'approuver la proposition');
+      showMessage(t('common.error'), t('admin.approveError'));
     } finally {
-      setProcessing(false);
+      setProcessing(null);
     }
   };
 
@@ -158,26 +181,20 @@ export default function AdminClubProposalsScreen() {
     if (!selectedProposal) return;
 
     if (!adminNotes.trim()) {
-      showAlert('Attention', t('admin.noteRequired'));
+      showMessage(t('admin.attention'), t('admin.noteRequired'));
       return;
     }
 
-    const confirmReject = Platform.OS === 'web'
-      ? window.confirm(`Refuser la proposition\n\nÊtes-vous sûr de vouloir refuser le club "${selectedProposal.club_name}" ?\n\nL'utilisateur pourra soumettre une nouvelle proposition.`)
-      : await new Promise((resolve) => {
-          Alert.alert(
-            'Refuser la proposition',
-            `Êtes-vous sûr de vouloir refuser le club "${selectedProposal.club_name}" ?\n\nL'utilisateur pourra soumettre une nouvelle proposition.`,
-            [
-              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-              { text: t('admin.reject'), style: 'destructive', onPress: () => resolve(true) },
-            ]
-          );
-        });
+    const confirmed = await confirmAction({
+      title: t('admin.rejectTitle'),
+      message: t('admin.rejectMessage', { name: selectedProposal.club_name }),
+      confirmLabel: t('admin.reject'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-    if (!confirmReject) return;
-
-    setProcessing(true);
+    setProcessing('reject');
     try {
       const { error } = await supabase
         .from('club_proposals')
@@ -189,21 +206,21 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
-      showAlert(t('clubs.proposalRejected'), 'L\'utilisateur peut maintenant soumettre une nouvelle proposition.');
+      showMessage(t('clubs.proposalRejected'), t('admin.rejectedInfo'));
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert(t('common.error'), 'Impossible de refuser la proposition');
+      showMessage(t('common.error'), t('admin.rejectError'));
     } finally {
-      setProcessing(false);
+      setProcessing(null);
     }
   };
 
   const handleSetUnderReview = async () => {
     if (!selectedProposal) return;
 
-    setProcessing(true);
+    setProcessing('review');
     try {
       const { error } = await supabase
         .from('club_proposals')
@@ -215,295 +232,186 @@ export default function AdminClubProposalsScreen() {
 
       if (error) throw error;
 
-      showAlert(t('common.success'), 'La proposition est maintenant en cours d\'examen.');
+      showMessage(t('common.success'), t('admin.underReviewInfo'));
       setModalVisible(false);
       loadProposals();
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert(t('common.error'), 'Impossible de mettre à jour le statut');
+      showMessage(t('common.error'), t('admin.statusError'));
     } finally {
-      setProcessing(false);
+      setProcessing(null);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return COLORS.warning;
-      case 'under_review': return COLORS.primaryText;
-      case 'approved': return COLORS.success;
-      case 'rejected': return COLORS.error;
-      default: return COLORS.textSecondary;
-    }
+  const submittedOn = (value) => {
+    const parts = dateParts(value, language);
+    return t('admin.submittedOn', { date: `${parts.day} ${parts.month} ${parts.year}` });
   };
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending': return t('admin.pending');
-      case 'under_review': return t('admin.underReview');
-      case 'approved': return t('admin.approved');
-      case 'rejected': return t('admin.rejected');
-      default: return status;
-    }
-  };
+  const filters = [
+    { key: 'pending', label: t('admin.pending') },
+    { key: 'under_review', label: t('admin.underReview') },
+    { key: 'approved', label: t('admin.approved') },
+    { key: 'rejected', label: t('admin.rejected') },
+    { key: 'all', label: t('admin.all') },
+  ];
 
   const renderProposal = ({ item }) => (
-    <TouchableOpacity
-      style={styles.proposalCard}
+    <PopPressable
       onPress={() => openProposalDetails(item)}
+      radius={20}
+      containerStyle={styles.card}
+      style={styles.cardFace}
+      accessibilityLabel={item.club_name}
     >
-      <View style={styles.proposalHeader}>
-        <Text style={styles.proposalName}>{item.club_name}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {getStatusText(item.status)}
-          </Text>
+      <View style={styles.cardTop}>
+        <Text style={styles.proposalName} numberOfLines={2}>
+          {item.club_name}
+        </Text>
+        <StatusSticker status={item.status} />
+      </View>
+      <InfoRow icon="person">{item.president_name}</InfoRow>
+      <InfoRow icon="pricetag">{item.category || t('profile.notSpecified')}</InfoRow>
+      <InfoRow icon="people">{t('admin.maxCapacityShort', { count: item.max_capacity })}</InfoRow>
+      <View style={styles.cardFooter}>
+        <Text style={styles.proposalDate}>{submittedOn(item.created_at)}</Text>
+        <View style={styles.arrow}>
+          <Ionicons name="arrow-forward" size={18} color={PALETTE.ink} />
         </View>
       </View>
-
-      <View style={styles.proposalInfo}>
-        <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.infoText}>{item.president_name}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="folder-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.infoText}>{item.category || t('profile.notSpecified')}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="people-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.infoText}>Capacité max: {item.max_capacity}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.proposalDate}>
-        Soumis le {new Date(item.created_at).toLocaleDateString('fr-FR')}
-      </Text>
-    </TouchableOpacity>
+    </PopPressable>
   );
 
-  const renderFilters = () => (
-    <ScrollView 
-      horizontal 
-      showsHorizontalScrollIndicator={false}
-      style={styles.filtersContainer}
-    >
-      {[
-        { key: 'pending', label: t('admin.pending') },
-        { key: 'under_review', label: t('admin.underReview') },
-        { key: 'approved', label: t('admin.approved') },
-        { key: 'rejected', label: t('admin.rejected') },
-        { key: 'all', label: t('admin.all') },
-      ].map((f) => (
-        <TouchableOpacity
-          key={f.key}
-          style={[
-            styles.filterButton,
-            filter === f.key && styles.filterButtonActive,
-          ]}
-          onPress={() => setFilter(f.key)}
-        >
-          <Text style={[
-            styles.filterButtonText,
-            filter === f.key && styles.filterButtonTextActive,
-          ]}>
-            {f.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
+  const busy = processing !== null;
 
   return (
     <View style={styles.container}>
-      {renderFilters()}
+      <View style={styles.filters}>
+        <ChipSelect options={filters} value={filter} onChange={setFilter} color={COLOR} />
+      </View>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primaryText} />
-        </View>
-      ) : (
-        <FlatList
-          data={proposals}
-          renderItem={renderProposal}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={64} color={COLORS.surfaceLight} />
-              <Text style={styles.emptyText}>Aucune proposition</Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={proposals}
+        renderItem={renderProposal}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.list}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        ListHeaderComponent={
+          <SectionTitle
+            title={filters.find((f) => f.key === filter)?.label}
+            count={loading ? null : proposals.length}
+            color={COLOR}
+          />
+        }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={PALETTE.ink} style={styles.loader} />
+          ) : (
+            <EmptyState
+              emoji="📬"
+              title={t('admin.emptyProposals')}
+              message={t('admin.emptyProposalsHint')}
+              color={COLOR}
+            />
+          )
+        }
+      />
 
       {/* Modal de détails */}
-      <Modal
+      <AdminFormModal
         visible={modalVisible}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        title={t('admin.proposal')}
+        color={COLOR}
+        onClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Détails de la proposition</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={28} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
+        {selectedProposal && (
+          <>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>{t('admin.currentStatus')}</Text>
+              <StatusSticker status={selectedProposal.status} />
+            </View>
 
-          {selectedProposal && (
-            <ScrollView style={styles.modalContent}>
-              {/* Statut actuel */}
-              <View style={[styles.currentStatus, { backgroundColor: `${getStatusColor(selectedProposal.status)}15` }]}>
-                <Text style={styles.currentStatusLabel}>Statut actuel:</Text>
-                <Text style={[styles.currentStatusValue, { color: getStatusColor(selectedProposal.status) }]}>
-                  {getStatusText(selectedProposal.status)}
-                </Text>
-              </View>
+            <FormSection title={t('admin.clubInfo')}>
+              <InfoField label={t('clubs.clubName')}>{selectedProposal.club_name}</InfoField>
+              <InfoField label={t('form.category')}>
+                {selectedProposal.category || t('profile.notSpecified')}
+              </InfoField>
+              <InfoField label={t('clubs.objective')}>{selectedProposal.objective}</InfoField>
+              <InfoField
+                label={t('clubs.maxCapacity')}
+                hint={t('admin.targetMembers', { count: Math.ceil(selectedProposal.max_capacity * 0.75) })}
+              >
+                {selectedProposal.max_capacity} {t('clubs.members')}
+              </InfoField>
+            </FormSection>
 
-              {/* Informations du club */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Informations du club</Text>
-                
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('clubs.clubName')}</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.club_name}</Text>
-                </View>
+            <FormSection title={t('clubs.president')}>
+              <InfoField label={t('auth.name')}>{selectedProposal.president_name}</InfoField>
+              <InfoField label={t('auth.email')}>{selectedProposal.president_email}</InfoField>
+            </FormSection>
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('form.category')}</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.category || t('profile.notSpecified')}</Text>
-                </View>
+            <FormSection title={t('clubs.eventIdeas')}>
+              <InfoField>{selectedProposal.event_ideas}</InfoField>
+            </FormSection>
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('clubs.objective')}</Text>
-                  <Text style={styles.fieldValueMultiline}>{selectedProposal.objective}</Text>
-                </View>
+            {selectedProposal.additional_info ? (
+              <FormSection title={t('clubs.additionalInfo')}>
+                <InfoField>{selectedProposal.additional_info}</InfoField>
+              </FormSection>
+            ) : null}
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('clubs.maxCapacity')}</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.max_capacity} {t('clubs.members')}</Text>
-                  <Text style={styles.fieldHint}>
-                    Objectif 3/4: {Math.ceil(selectedProposal.max_capacity * 0.75)} {t('clubs.members')} minimum dans le 1er mois
-                  </Text>
-                </View>
-              </View>
+            <FormSection title={t('admin.adminNotes')}>
+              <FormField
+                multiline
+                value={adminNotes}
+                onChangeText={setAdminNotes}
+                placeholder={t('admin.notesPlaceholder')}
+              />
+            </FormSection>
 
-              {/* Président */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('clubs.president')}</Text>
+            {selectedProposal.status !== 'approved' ? (
+              <View style={styles.actions}>
+                {selectedProposal.status === 'pending' ? (
+                  <PopButton
+                    title={t('admin.setUnderReview')}
+                    icon="eye"
+                    variant="periwinkle"
+                    loading={processing === 'review'}
+                    disabled={busy && processing !== 'review'}
+                    onPress={handleSetUnderReview}
+                  />
+                ) : null}
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('auth.name')}</Text>
-                  <Text style={styles.fieldValue}>{selectedProposal.president_name}</Text>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
-                  <Text style={[styles.fieldValue, { color: COLORS.primaryText }]}>
-                    {selectedProposal.president_email}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Événements */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('clubs.eventIdeas')}</Text>
-                <Text style={styles.fieldValueMultiline}>{selectedProposal.event_ideas}</Text>
-              </View>
-
-              {/* Infos supplémentaires */}
-              {selectedProposal.additional_info && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('clubs.additionalInfo')}</Text>
-                  <Text style={styles.fieldValueMultiline}>{selectedProposal.additional_info}</Text>
-                </View>
-              )}
-
-              {/* Notes admin */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('admin.adminNotes')}</Text>
-                <TextInput
-                  style={styles.notesInput}
-                  value={adminNotes}
-                  onChangeText={setAdminNotes}
-                  placeholder="Ajoutez des notes (obligatoire en cas de refus)..."
-                  placeholderTextColor={COLORS.textSecondary}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
+                <PopButton
+                  title={t('admin.approveAndCreate')}
+                  icon="checkmark-circle"
+                  variant="success"
+                  loading={processing === 'approve'}
+                  disabled={busy && processing !== 'approve'}
+                  onPress={handleApprove}
                 />
+
+                {selectedProposal.status !== 'rejected' ? (
+                  <PopButton
+                    title={t('admin.reject')}
+                    icon="close-circle"
+                    variant="danger"
+                    loading={processing === 'reject'}
+                    disabled={busy && processing !== 'reject'}
+                    onPress={handleReject}
+                  />
+                ) : null}
               </View>
-
-              {/* Actions */}
-              {selectedProposal.status !== 'approved' && (
-                <View style={styles.actionsSection}>
-                  {selectedProposal.status === 'pending' && (
-                    <TouchableOpacity
-                      style={styles.reviewButton}
-                      onPress={handleSetUnderReview}
-                      disabled={processing}
-                    >
-                      {processing ? (
-                        <ActivityIndicator color={COLORS.onPrimary} />
-                      ) : (
-                        <>
-                          <Ionicons name="eye" size={20} color={COLORS.onPrimary} />
-                          <Text style={styles.reviewButtonText}>Mettre en examen</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.approveButton}
-                    onPress={handleApprove}
-                    disabled={processing}
-                  >
-                    {processing ? (
-                      <ActivityIndicator color={COLORS.onPrimary} />
-                    ) : (
-                      <>
-                        <Ionicons name="checkmark-circle" size={20} color={COLORS.onPrimary} />
-                        <Text style={styles.approveButtonText}>Approuver et créer le club</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {selectedProposal.status !== 'rejected' && (
-                    <TouchableOpacity
-                      style={styles.rejectButton}
-                      onPress={handleReject}
-                      disabled={processing}
-                    >
-                      {processing ? (
-                        <ActivityIndicator color={COLORS.onPrimary} />
-                      ) : (
-                        <>
-                          <Ionicons name="close-circle" size={20} color={COLORS.onPrimary} />
-                          <Text style={styles.rejectButtonText}>{t('admin.reject')}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {selectedProposal.status === 'approved' && (
-                <View style={styles.approvedNotice}>
-                  <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-                  <Text style={styles.approvedNoticeText}>
-                    Cette proposition a été approuvée et le club a été créé.
-                  </Text>
-                </View>
-              )}
-
-              <View style={{ height: 40 }} />
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
+            ) : (
+              <View style={styles.approvedNotice}>
+                <Ionicons name="checkmark-circle" size={24} color={PALETTE.ink} />
+                <Text style={styles.approvedNoticeText}>{t('admin.approvedNotice')}</Text>
+              </View>
+            )}
+          </>
+        )}
+      </AdminFormModal>
     </View>
   );
 }
@@ -511,245 +419,129 @@ export default function AdminClubProposalsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: PALETTE.paper,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filtersContainer: {
-    backgroundColor: COLORS.surface,
-    paddingVertical: 12,
+  filters: {
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
-    marginRight: 8,
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.primary,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  filterButtonTextActive: {
-    color: COLORS.onPrimary,
-    fontWeight: '600',
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   list: {
     padding: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
+  loader: {
+    marginTop: 40,
   },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: 16,
+  card: {
+    marginBottom: 20,
   },
-  proposalCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
+  cardFace: {
+    padding: 14,
   },
-  proposalHeader: {
+  cardTop: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 10,
   },
   proposalName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
     flex: 1,
-    marginRight: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  proposalInfo: {
-    marginBottom: 12,
+    fontFamily: FONTS.display,
+    fontSize: 18,
+    lineHeight: 24,
+    color: PALETTE.ink,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   infoText: {
+    flex: 1,
+    fontFamily: FONTS.bodyMedium,
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: PALETTE.ink,
     marginLeft: 8,
   },
-  proposalDate: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalHeader: {
+  cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    justifyContent: 'space-between',
+    marginTop: 10,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
+  proposalDate: {
+    fontFamily: FONTS.varsityBold,
+    fontSize: 15,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
   },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  currentStatus: {
-    flexDirection: 'row',
+  arrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: PALETTE.ink,
+    backgroundColor: PALETTE.white,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    borderRadius: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
-  currentStatusLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginRight: 8,
+  statusLabel: {
+    fontFamily: FONTS.varsity,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: PALETTE.ink,
+    includeFontPadding: false,
   },
-  currentStatusValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  section: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  fieldGroup: {
-    marginBottom: 12,
+  field: {
+    marginBottom: 14,
   },
   fieldLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: 13,
+    color: PALETTE.inkSoft,
     marginBottom: 4,
   },
   fieldValue: {
     fontSize: 16,
-    color: COLORS.text,
-  },
-  fieldValueMultiline: {
-    fontSize: 14,
-    color: COLORS.text,
-    lineHeight: 22,
+    lineHeight: 23,
+    color: PALETTE.ink,
   },
   fieldHint: {
-    fontSize: 12,
-    color: COLORS.primaryText,
+    fontFamily: FONTS.bodyMedium,
+    fontSize: 13,
+    color: PALETTE.inkSoft,
     marginTop: 4,
-    fontStyle: 'italic',
   },
-  notesInput: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.text,
-    minHeight: 100,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  actionsSection: {
-    marginTop: 8,
-  },
-  reviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  reviewButtonText: {
-    color: COLORS.onPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  approveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PALETTE.lime,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  approveButtonText: {
-    color: COLORS.onPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  rejectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PALETTE.cherry,
-    padding: 16,
-    borderRadius: 12,
-  },
-  rejectButtonText: {
-    color: COLORS.onPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  actions: {
+    gap: 14,
+    marginTop: 4,
   },
   approvedNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${COLORS.success}15`,
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: PALETTE.lime,
+    borderRadius: 16,
+    borderWidth: STROKE,
+    borderColor: PALETTE.ink,
+    padding: 14,
+    gap: 10,
   },
   approvedNoticeText: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: COLORS.success,
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: 15,
+    color: PALETTE.ink,
   },
 });

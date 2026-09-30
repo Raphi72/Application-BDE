@@ -1,24 +1,50 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  Alert,
-  Image,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import Text, { TextInput } from '../../components/ui/AppText';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { supabase } from '../../config/supabase';
 import EventCard from '../../components/EventCard';
-import { showImagePicker, uploadImage } from '../../services/imageUpload';
-import { COLORS, SHADOWS } from '../../constants/theme';
+import { PopButton } from '../../components/ui/Pop';
+import { EmptyState } from '../../components/ui/Deco';
+import { PALETTE, SECTION_COLORS } from '../../constants/theme';
 import { notificationService } from '../../services/NotificationService';
 import { useLanguage } from '../../context/LanguageContext';
+import { confirmAction, showMessage } from '../../utils/dialogs';
+import {
+  AdminFormModal,
+  AdminItemActions,
+  AdminListHeader,
+  FormField,
+  FormSection,
+  ImagesField,
+  dayOnly,
+  isValidDate,
+  isValidTime,
+  parseImages,
+  useAdminForm,
+  useImageUploader,
+} from './AdminKit';
+
+const COLOR = SECTION_COLORS.Events;
+
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  date: '',
+  time: '',
+  location: '',
+  maxParticipants: '',
+  images: [],
+};
+
+const formFromEvent = (event) => ({
+  title: event.title ?? '',
+  description: event.description ?? '',
+  date: dayOnly(event.date),
+  // "18:00:00" -> "18:00"
+  time: event.time ? String(event.time).slice(0, 5) : '',
+  location: event.location ?? '',
+  maxParticipants: event.max_participants != null ? String(event.max_participants) : '',
+  images: parseImages(event.image),
+});
 
 /**
  * Écran admin pour gérer les événements
@@ -28,20 +54,11 @@ export default function AdminEventsScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const { visible, editing, form, setField, open, close, requestClose } = useAdminForm(EMPTY_FORM);
+  const { pick, uploading } = useImageUploader('events', (url) => setField('images', (prev) => [...prev, url]));
 
-  // Formulaire
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [maxParticipants, setMaxParticipants] = useState('');
-  const [images, setImages] = useState([]);
-  const [uploading, setUploading] = useState(false);
-
-  React.useEffect(() => {
+  useEffect(() => {
     loadEvents();
   }, []);
 
@@ -55,7 +72,8 @@ export default function AdminEventsScreen() {
       if (error) throw error;
       setEvents(data || []);
     } catch (error) {
-      Alert.alert(t('common.error'), 'Impossible de charger les événements');
+      console.error('Erreur chargement événements:', error);
+      showMessage(t('common.error'), t('admin.loadError'));
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -70,97 +88,29 @@ export default function AdminEventsScreen() {
     loadEvents(true);
   };
 
-  // Un champ du formulaire a-t-il été rempli ? (pour confirmer avant de perdre la saisie)
-  const hasUnsavedChanges = () => {
-    return Boolean(
-      title || description || date || time || location || maxParticipants || images.length > 0
-    );
-  };
-
-  const requestCloseModal = async () => {
-    if (hasUnsavedChanges()) {
-      const confirmClose = Platform.OS === 'web'
-        ? window.confirm(`${t('admin.discardChangesTitle')}\n\n${t('admin.discardChangesConfirm')}`)
-        : await new Promise((resolve) => {
-            Alert.alert(
-              t('admin.discardChangesTitle'),
-              t('admin.discardChangesConfirm'),
-              [
-                { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
-                { text: t('admin.discardChanges'), style: 'destructive', onPress: () => resolve(true) },
-              ]
-            );
-          });
-      if (!confirmClose) return;
-    }
-    setModalVisible(false);
-  };
-
-  const openModal = (event = null) => {
-    if (event) {
-      setEditingEvent(event);
-      setTitle(event.title);
-      setDescription(event.description);
-      setDate(event.date);
-      setTime(event.time);
-      setLocation(event.location);
-      setMaxParticipants(event.max_participants?.toString() || '');
-
-      let imgList = [];
-      try {
-        if (event.image) {
-          const parsed = JSON.parse(event.image);
-          imgList = Array.isArray(parsed) ? parsed : [event.image];
-        }
-      } catch (e) {
-        imgList = event.image ? [event.image] : [];
-      }
-      setImages(imgList);
-    } else {
-      setEditingEvent(null);
-      resetForm();
-    }
-    setModalVisible(true);
-  };
-
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setDate('');
-    setTime('');
-    setLocation('');
-    setMaxParticipants('');
-    setImages([]);
-  };
-
-  const handleImagePicker = async () => {
-    try {
-      showImagePicker(async (selectedImage) => {
-        if (selectedImage) {
-          setUploading(true);
-          try {
-            const uploadedUrl = await uploadImage(selectedImage.uri, 'events');
-            setImages(prev => [...prev, uploadedUrl]);
-            Alert.alert(t('common.success'), 'Image ajoutée !');
-          } catch (error) {
-            console.error('Erreur upload:', error);
-            Alert.alert(t('common.error'), "Impossible d'uploader l'image.");
-          } finally {
-            setUploading(false);
-          }
-        }
-      });
-    } catch (error) {
-      Alert.alert(t('common.error'), error.message || 'Impossible de sélectionner une image');
-    }
-  };
+  const openModal = (event = null) => open(event, event ? formFromEvent(event) : EMPTY_FORM);
 
   const handleSave = async () => {
+    const title = form.title.trim();
+    const description = form.description.trim();
+    const location = form.location.trim();
+    const date = form.date.trim();
+    const time = form.time.trim();
+
     if (!title || !description || !date || !time || !location) {
-      Alert.alert(t('common.error'), t('admin.requiredFields'));
+      showMessage(t('common.error'), t('admin.requiredFields'));
+      return;
+    }
+    if (!isValidDate(date)) {
+      showMessage(t('common.error'), t('admin.invalidDate'));
+      return;
+    }
+    if (!isValidTime(time)) {
+      showMessage(t('common.error'), t('admin.invalidTime'));
       return;
     }
 
+    setSaving(true);
     try {
       const eventData = {
         title,
@@ -168,23 +118,20 @@ export default function AdminEventsScreen() {
         date,
         time,
         location,
-        location,
-        max_participants: parseInt(maxParticipants) || 100,
-        image: JSON.stringify(images), // Sauvegarde en JSON
-        current_participants: editingEvent?.current_participants || 0,
+        max_participants: parseInt(form.maxParticipants, 10) || 100,
+        image: JSON.stringify(form.images), // Sauvegarde en JSON
+        current_participants: editing?.current_participants || 0,
       };
 
-      if (editingEvent) {
-        // Mise à jour
+      if (editing) {
         const { error } = await supabase
           .from('events')
           .update(eventData)
-          .eq('id', editingEvent.id);
+          .eq('id', editing.id);
 
         if (error) throw error;
-        Alert.alert(t('common.success'), t('admin.saveSuccess'));
+        showMessage(t('common.success'), t('admin.saveSuccess'));
       } else {
-        // Création
         const { error } = await supabase
           .from('events')
           .insert([eventData]);
@@ -194,205 +141,163 @@ export default function AdminEventsScreen() {
         // Envoyer une notification à tous les utilisateurs
         await notificationService.notifyNewEvent(title);
 
-        Alert.alert(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
+        showMessage(t('common.success'), `${t('admin.saveSuccess')} - ${t('admin.notificationSent')}`);
       }
 
-      setModalVisible(false);
-      resetForm();
+      close();
       loadEvents();
     } catch (error) {
-      Alert.alert(t('common.error'), error.message);
+      showMessage(t('common.error'), error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (eventId) => {
-    Alert.alert(
-      t('admin.deleteConfirm'),
-      t('admin.deleteEventConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('events')
-                .delete()
-                .eq('id', eventId);
+  const handleDelete = async (event) => {
+    const confirmed = await confirmAction({
+      title: t('admin.deleteConfirm'),
+      message: t('admin.deleteEventConfirm'),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-              if (error) throw error;
-              loadEvents();
-            } catch (error) {
-              Alert.alert(t('common.error'), t('admin.deleteError'));
-            }
-          },
-        },
-      ]
-    );
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', event.id);
+
+      if (error) throw error;
+      loadEvents();
+    } catch (error) {
+      showMessage(t('common.error'), t('admin.deleteError'));
+    }
   };
 
   const renderEvent = ({ item }) => (
-    <View style={styles.eventCard}>
+    <View>
       <EventCard
         event={{
           ...item,
           maxParticipants: item.max_participants,
-          currentParticipants: item.current_participants,
+          currentParticipants: item.current_participants || 0,
         }}
         onPress={() => openModal(item)}
+        containerStyle={styles.card}
       />
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => openModal(item)}
-        >
-          <Ionicons name="create-outline" size={20} color={COLORS.primaryText} />
-          <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => handleDelete(item.id)}
-        >
-          <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-          <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
-        </TouchableOpacity>
-      </View>
+      <AdminItemActions onEdit={() => openModal(item)} onDelete={() => handleDelete(item)} />
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
-          <Ionicons name="add-circle" size={24} color={COLORS.onPrimary} />
-          <Text style={styles.addButtonText}>{t('admin.newEvent')}</Text>
-        </TouchableOpacity>
-      </View>
-
       <FlatList
         data={events}
         renderItem={renderEvent}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        ListHeaderComponent={
+          <AdminListHeader
+            actionLabel={t('admin.newEvent')}
+            onAction={() => openModal()}
+            color={COLOR}
+            title={t('navigation.events')}
+            count={loading ? null : events.length}
+          />
+        }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={PALETTE.ink} style={styles.loader} />
+          ) : (
+            <EmptyState emoji="🎟️" title={t('admin.emptyEvents')} message={t('admin.emptyHint')} color={COLOR} />
+          )
+        }
       />
 
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        onRequestClose={requestCloseModal}
+      <AdminFormModal
+        visible={visible}
+        title={editing ? t('admin.editEvent') : t('admin.newEvent')}
+        color={COLOR}
+        onClose={requestClose}
+        footer={
+          <PopButton
+            title={editing ? t('common.update') : t('common.create')}
+            icon="checkmark"
+            color={COLOR}
+            loading={saving}
+            onPress={handleSave}
+          />
+        }
       >
-        <ScrollView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {editingEvent ? t('admin.editEvent') : t('admin.newEvent')}
-            </Text>
-            <TouchableOpacity onPress={requestCloseModal}>
-              <Ionicons name="close" size={28} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
+        <FormSection title={t('admin.sectionInfo')}>
+          <FormField
+            label={t('form.title')}
+            required
+            value={form.title}
+            onChangeText={(value) => setField('title', value)}
+            placeholder={t('admin.eventTitlePlaceholder')}
+          />
+          <FormField
+            label={t('form.description')}
+            required
+            multiline
+            value={form.description}
+            onChangeText={(value) => setField('description', value)}
+            placeholder={t('admin.eventDescriptionPlaceholder')}
+          />
+        </FormSection>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>{t('form.title')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Titre de l'événement"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <Text style={styles.label}>{t('form.description')} *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Description de l'événement"
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              numberOfLines={4}
-            />
-
-            <Text style={styles.label}>{t('form.date')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={date}
-              onChangeText={setDate}
+        <FormSection title={t('admin.sectionWhenWhere')}>
+          <View style={styles.row}>
+            <FormField
+              label={t('form.date')}
+              required
+              value={form.date}
+              onChangeText={(value) => setField('date', value)}
               placeholder={t('form.dateFormat')}
-              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="numbers-and-punctuation"
+              containerStyle={styles.rowItem}
             />
-
-            <Text style={styles.label}>{t('form.time')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={time}
-              onChangeText={setTime}
+            <FormField
+              label={t('form.time')}
+              required
+              value={form.time}
+              onChangeText={(value) => setField('time', value)}
               placeholder={t('form.timeFormat')}
-              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="numbers-and-punctuation"
+              containerStyle={styles.rowItem}
             />
-
-            <Text style={styles.label}>{t('form.location')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Lieu de l'événement"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <Text style={styles.label}>{t('form.maxParticipants')}</Text>
-            <TextInput
-              style={styles.input}
-              value={maxParticipants}
-              onChangeText={setMaxParticipants}
-              placeholder="100"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.label}>{t('admin.images')}</Text>
-            <View style={styles.imageSection}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
-                {images.map((img, index) => (
-                  <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri: img }} style={styles.previewImage} />
-                    <TouchableOpacity
-                      style={styles.removeImageButtonAbsolute}
-                      onPress={() => setImages(prev => prev.filter((_, i) => i !== index))}
-                    >
-                      <Ionicons name="close-circle" size={24} color={COLORS.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-
-                <TouchableOpacity
-                  style={styles.addImageButton}
-                  onPress={handleImagePicker}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <ActivityIndicator color={COLORS.primaryText} />
-                  ) : (
-                    <Ionicons name="add" size={32} color={COLORS.primaryText} />
-                  )}
-                </TouchableOpacity>
-              </ScrollView>
-
-              <Text style={styles.imageHint}>
-                {t('admin.imageHint')}
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>
-                {editingEvent ? t('common.update') : t('common.create')}
-              </Text>
-            </TouchableOpacity>
           </View>
-        </ScrollView>
-      </Modal>
+          <FormField
+            label={t('form.location')}
+            required
+            value={form.location}
+            onChangeText={(value) => setField('location', value)}
+            placeholder={t('admin.eventLocationPlaceholder')}
+          />
+          <FormField
+            label={t('form.maxParticipants')}
+            value={form.maxParticipants}
+            onChangeText={(value) => setField('maxParticipants', value)}
+            placeholder="100"
+            keyboardType="number-pad"
+          />
+        </FormSection>
+
+        <FormSection title={t('admin.images')} style={styles.imagesSection}>
+          <ImagesField
+            images={form.images}
+            onAdd={pick}
+            onRemove={(index) => setField('images', (prev) => prev.filter((_, i) => i !== index))}
+            uploading={uploading}
+            hint={t('admin.imageHint')}
+          />
+        </FormSection>
+      </AdminFormModal>
     </View>
   );
 }
@@ -400,163 +305,27 @@ export default function AdminEventsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    padding: 12,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    ...SHADOWS.neon,
-  },
-  addButtonText: {
-    color: COLORS.onPrimary,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    backgroundColor: PALETTE.paper,
   },
   list: {
     padding: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
-  eventCard: {
-    marginBottom: 16,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    ...SHADOWS.card,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  editButtonText: {
-    color: COLORS.primaryText,
-    marginLeft: 4,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  deleteButtonText: {
-    color: COLORS.error,
-    marginLeft: 4,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceLight,
-    backgroundColor: COLORS.surface,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  form: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 16,
-    color: COLORS.textSecondary,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.surfaceLight,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 32,
-    ...SHADOWS.neon,
-  },
-  saveButtonText: {
-    color: COLORS.onPrimary,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  imageSection: {
-    marginTop: 8,
-  },
-  imageHint: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
-  imageList: {
-    flexDirection: 'row',
+  card: {
     marginBottom: 12,
   },
-  imageWrapper: {
-    marginRight: 12,
-    position: 'relative',
+  loader: {
+    marginTop: 40,
   },
-  previewImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
+  row: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  removeImageButtonAbsolute: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
+  rowItem: {
+    flex: 1,
   },
-  addImageButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderStyle: 'dashed',
+  imagesSection: {
+    paddingBottom: 16,
   },
 });

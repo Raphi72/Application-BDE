@@ -67,8 +67,9 @@ export function countdownLabel(days, t) {
  * @param {Object} event - Objet événement
  * @param {Function} onPress - Fonction appelée au clic
  * @param {boolean} featured - Prochain événement : affiche plus grande
+ * @param {Object} containerStyle - Style du conteneur (marges), optionnel
  */
-const EventCard = ({ event, onPress, featured = false }) => {
+const EventCard = ({ event, onPress, featured = false, containerStyle }) => {
   const { t, language } = useLanguage();
   const days = daysUntil(event.date);
   const isPast = days < 0;
@@ -84,7 +85,7 @@ const EventCard = ({ event, onPress, featured = false }) => {
     <PopPressable
       onPress={onPress}
       radius={22}
-      containerStyle={[styles.container, isPast && styles.past]}
+      containerStyle={[styles.container, isPast && styles.past, containerStyle]}
       accessibilityLabel={event.title}
     >
       <View>

@@ -58,7 +58,13 @@ export default function CustomBottomTabBar({
             accessibilityState={{ selected: item.focused }}
             accessibilityLabel={item.label}
           >
-            <View style={[styles.iconPill, item.focused && { backgroundColor: item.color }]}>
+            {/* key : la pastille est recréée à chaque changement d'état. Sur
+                Android, une vue qui reçoit sa couleur de fond après le montage
+                (onglet activé par la suite) perdait ses coins arrondis. */}
+            <View
+              key={item.focused ? 'active' : 'idle'}
+              style={[styles.iconPill, item.focused && { backgroundColor: item.color }]}
+            >
               <Ionicons
                 name={item.focused ? item.icon : `${item.icon}-outline`}
                 size={22}
