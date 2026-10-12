@@ -54,7 +54,7 @@ CREATE POLICY "Requesters can cancel pending requests"
 CREATE TABLE IF NOT EXISTS public.club_sessions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   club_id UUID NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
-  created_by UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE RESTRICT,
+  created_by UUID DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
   title TEXT NOT NULL CHECK (char_length(btrim(title)) BETWEEN 1 AND 120),
   description TEXT CHECK (char_length(description) <= 2000),
   session_date DATE NOT NULL,
@@ -94,7 +94,10 @@ BEGIN
     END IF;
   ELSE
     NEW.club_id := OLD.club_id;
-    NEW.created_by := OLD.created_by;
+    -- Auteur figé, sauf sa remise à NULL quand son compte est supprimé.
+    IF NEW.created_by IS NOT NULL THEN
+      NEW.created_by := OLD.created_by;
+    END IF;
     NEW.created_at := OLD.created_at;
     NEW.updated_at := NOW();
   END IF;
