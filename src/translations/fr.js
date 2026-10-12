@@ -151,7 +151,7 @@ export default {
     enterPassword: 'Veuillez entrer votre mot de passe',
     firstConfirmation: 'Première confirmation',
     lastChance: 'DERNIÈRE CHANCE',
-    appVersion: 'Version 1.0.0',
+    appVersion: 'Version {{version}}',
     appMayContainBugs: 'Cette application peut contenir des bugs',
   },
 

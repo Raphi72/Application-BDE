@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Text, { TextInput } from '../components/ui/AppText';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../config/supabase';
@@ -324,7 +325,9 @@ export default function ProfileScreen({ navigation }) {
 
       <View style={styles.footer}>
         <Wordmark size={14} />
-        <Text style={styles.footerText}>{t('profile.appVersion')}</Text>
+        <Text style={styles.footerText}>
+          {t('profile.appVersion', { version: Constants.expoConfig?.version ?? '' })}
+        </Text>
       </View>
 
       {/* Modal de sélection de langue */}
