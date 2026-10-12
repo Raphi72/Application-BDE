@@ -81,7 +81,8 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - `58d68ed` : `branding.md` + renommage de l'app en NØVYX (`app.json`, pages légales, fiche Play Store).
 - `9ea3fac` : ce fichier.
 - Migration Expo SDK 54 → 57 (RN 0.86) : dépendances alignées, `react-native-calendars` 1.1314 (supprime le doublon `safe-area-context`), splash via plugin, `@react-navigation/bottom-tabs` retiré (inutilisé). Vérifiée sur émulateur avec Expo Go 57.
-- Branche `fix/admin-panel` (pas encore fusionnée, septembre 2026) : réparation de l'espace admin, cassé depuis `f9f0dfa` (onglet Admin → « Another navigator is already registered »), refonte NØVYX des 5 écrans admin, choix d'image en galerie réparé (`mediaTypes`), pastilles d'onglet arrondies sur Android. Vérifiée sur émulateur avec une fausse session admin.
+- Release **1.1.0** (octobre 2026, tag `v1.1.0`, `versionCode` 4, build EAS de production) : espace club, sessions de club, refonte admin, verrouillage du rôle admin, correctif de suppression de compte. La prochaine build Play Store doit passer à `versionCode` 5 (`appVersionSource: local`, à incrémenter à la main dans `app.json`).
+- Branche `fix/admin-panel` (fusionnée dans `master`) : réparation de l'espace admin, cassé depuis `f9f0dfa` (onglet Admin → « Another navigator is already registered »), refonte NØVYX des 5 écrans admin, choix d'image en galerie réparé (`mediaTypes`), pastilles d'onglet arrondies sur Android. Vérifiée sur émulateur avec une fausse session admin.
 
 ## Points ouverts
 
