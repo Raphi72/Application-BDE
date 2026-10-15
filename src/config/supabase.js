@@ -10,6 +10,7 @@
  */
 
 import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -29,8 +30,18 @@ if (!SUPABASE_URL.startsWith('http://') && !SUPABASE_URL.startsWith('https://'))
   throw new Error(`❌ SUPABASE_URL invalide : "${SUPABASE_URL}" doit commencer par http:// ou https://`);
 }
 
-// Créer le client Supabase
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Sans stockage fourni, supabase-js garde la session en mémoire hors
+// navigateur : sur téléphone, chaque redémarrage de l'app déconnectait
+// l'utilisateur. Les liens reçus par email sont lus par AuthContext
+// (handleDeepLink), d'où detectSessionInUrl désactivé.
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: AsyncStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+  },
+});
 
 console.log('✅ Supabase configuré avec succès');
 console.log('📍 URL:', SUPABASE_URL);

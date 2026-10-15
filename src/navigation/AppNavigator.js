@@ -39,7 +39,6 @@ import EventsScreen from '../screens/EventsScreen';
 import PollsScreen from '../screens/PollsScreen';
 import NewsScreen from '../screens/NewsScreen';
 import ClubsScreen from '../screens/ClubsScreen';
-import GalleryScreen from '../screens/GalleryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 // Écrans admin

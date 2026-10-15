@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase';
  * Accès aux données des clubs : liste publique, adhésions, espace privé
  * (annonces, projets, membres, demandes) et réglages du président.
  *
- * Les écritures sensibles passent par les RPC de database/clubs_espace.sql,
+ * Les écritures sensibles passent par les RPC de database/schema.sql,
  * qui vérifient les droits de l'appelant. Les erreurs métier y sont levées
  * avec un code court (ex. 'club_full'), traduit par clubErrorMessage.
  * Chaque fonction lève l'erreur Supabase en cas d'échec.
@@ -34,7 +34,7 @@ const RPC_ERROR_CODES = [
 ];
 
 // Table, colonne, relation ou fonction absente : la migration
-// database/clubs_espace.sql n'a pas encore été exécutée sur Supabase.
+// database/schema.sql n'a pas encore été exécutée sur Supabase.
 const MISSING_SCHEMA_CODES = ['PGRST200', 'PGRST202', 'PGRST204', 'PGRST205', '42P01', '42703', '42883'];
 
 export const MAX_JOIN_MESSAGE = 500;

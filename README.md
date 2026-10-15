@@ -8,7 +8,6 @@ Application mobile cross-platform développée avec React Native et Expo pour le
 - **🗳️ Sondages** : Liste des sondages, vote, affichage des résultats en temps réel
 - **📢 Actualités** : Fil d'actualités du BDE
 - **📂 Clubs & Associations** : Liste des clubs, propositions de club
-- **🖼️ Galerie Photos** : Albums photos des événements passés
 - **🔐 Authentification** : Inscription, connexion, réinitialisation de mot de passe (Supabase Auth)
 - **🛠️ Panneau Admin** : Gestion des événements, sondages, actualités et clubs
 - **🌍 Multilingue** : Français / Anglais
@@ -62,7 +61,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=
 EXPO_PUBLIC_AUTH_REDIRECT_URL=
 ```
 
-Appliquez le schéma de base de données dans l'éditeur SQL Supabase : voir [`database/schema.sql`](database/schema.sql).
+Appliquez le schéma de base de données dans l'éditeur SQL Supabase : collez [`database/schema.sql`](database/schema.sql) en entier (script unique, rejouable sans perte de données).
 
 ### Lancement
 

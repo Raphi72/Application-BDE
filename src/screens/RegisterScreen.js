@@ -83,14 +83,17 @@ export default function RegisterScreen({ navigation }) {
   const handleRegister = async () => {
     setErrorMessage(''); // Reset error message
 
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
     // Validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
       setErrorMessage(t('auth.fillAllFields'));
       return;
     }
 
     // Vérification du domaine email
-    if (!isEmailAllowed(email)) {
+    if (!isEmailAllowed(trimmedEmail)) {
       setErrorMessage(t('auth.emailDomainRestrictionRegister'));
       return;
     }
@@ -108,13 +111,7 @@ export default function RegisterScreen({ navigation }) {
     setLoading(true);
 
     try {
-      console.log('Tentative d\'inscription...');
-      const { data, error } = await signUp(email, password, {
-        name: name,
-        role: 'user',
-      });
-
-      console.log('Réponse inscription:', { data, error });
+      const { data, error } = await signUp(trimmedEmail, password, { name: trimmedName });
 
       if (error) {
         console.error('Erreur inscription:', error);
@@ -125,11 +122,22 @@ export default function RegisterScreen({ navigation }) {
           message = t('auth.tooManyAttempts');
         } else if (error.message.includes('already registered') || error.message.includes('User already registered')) {
           message = t('auth.emailAlreadyUsed');
+        } else if (error.message.includes('Database error saving new user')) {
+          // Adresse refusée par le trigger enforce_school_email (database/schema.sql)
+          message = t('auth.emailDomainRestrictionRegister');
         } else if (error.message.includes('invalid') && error.message.includes('email')) {
           message = t('auth.invalidEmailAddress');
         }
 
         setErrorMessage(message);
+        return;
+      }
+
+      // Email déjà inscrit et confirmé : Supabase ne renvoie pas d'erreur (pour
+      // ne pas révéler quelles adresses ont un compte) mais un utilisateur sans
+      // identité, et n'envoie aucun email.
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setErrorMessage(t('auth.emailAlreadyUsed'));
         return;
       }
 
@@ -140,7 +148,6 @@ export default function RegisterScreen({ navigation }) {
       }
 
       // Email de confirmation nécessaire - afficher le modal de succès
-      console.log('Affichage du modal de succès');
       setShowSuccessModal(true);
     } catch (err) {
       console.error('Exception inscription:', err);
@@ -295,7 +302,7 @@ export default function RegisterScreen({ navigation }) {
 
             <Text style={styles.modalDescription}>
               {t('auth.confirmationEmailSentTo')}{'\n'}
-              <Text style={styles.emailHighlight}>{email}</Text>
+              <Text style={styles.emailHighlight}>{email.trim()}</Text>
             </Text>
 
             <View style={styles.infoBox}>

@@ -102,8 +102,8 @@ Ce guide vous explique comment configurer Supabase pour l'application BDE.
 - **votes** : Votes des utilisateurs
 - **news** : Actualités
 - **clubs** : Clubs et associations
-- **gallery_albums** : Albums photos
-- **gallery_images** : Images des albums
+- **club_proposals**, **club_members**, **club_join_requests**, **club_posts**, **club_projects**, **club_sessions**, **club_session_responses** : propositions et espace club
+- **push_tokens** : Jetons de notification
 
 ### Rôles :
 

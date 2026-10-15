@@ -31,7 +31,6 @@ export default {
     polls: 'Polls',
     news: 'News',
     clubs: 'Clubs',
-    gallery: 'Gallery',
     admin: 'Admin',
     profile: 'Profile',
   },
@@ -111,6 +110,10 @@ export default {
     passwordUpdateSuccess: 'Your password has been successfully updated!',
     passwordMustDiffer: 'The new password must be different from the old one.',
     sessionExpired: 'Session expired. Please request a new password reset.',
+
+    // Email link expired or already used
+    linkInvalidTitle: 'Link expired',
+    linkInvalidMessage: 'This link is no longer valid: it has expired or was already used. If you were confirming your sign-up, try logging in, your account may already be active. Otherwise, request a new link.',
   },
 
   // Profile
@@ -486,7 +489,7 @@ export default {
       footer: 'Report prepared with NØVYX',
     },
     errors: {
-      setupMissing: 'The club space is not enabled yet: the database must be updated (database/clubs_espace.sql).',
+      setupMissing: 'The club space is not enabled yet: the database must be updated (database/schema.sql).',
       not_authenticated: 'Log in to continue.',
       not_allowed: 'You are not allowed to do that.',
       club_not_found: 'This club no longer exists.',
@@ -508,12 +511,6 @@ export default {
       invalid_response: 'This session response is invalid.',
       session_not_found: 'This session no longer exists.',
     },
-  },
-
-  // Gallery
-  gallery: {
-    title: 'Gallery',
-    noAlbums: 'No albums available',
   },
 
   // Admin

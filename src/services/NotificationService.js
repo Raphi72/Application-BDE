@@ -26,11 +26,11 @@ if (!isExpoGo) {
  */
 class NotificationService {
   /**
-   * Demande les permissions de notification et enregistre le token
-   * @param {string} userId - L'ID de l'utilisateur connecté
+   * Demande les permissions de notification et enregistre le token pour le
+   * compte connecté
    * @returns {Promise<string|null>} Le token ou null si refusé
    */
-  async registerForPushNotifications(userId) {
+  async registerForPushNotifications() {
     let token = null;
 
     // Les notifications push ne fonctionnent pas dans Expo Go depuis SDK 53
@@ -86,7 +86,7 @@ class NotificationService {
       console.log('Token de notification:', token);
 
       // Sauvegarder le token dans la base de données
-      await this.saveTokenToDatabase(userId, token);
+      await this.saveTokenToDatabase(token);
 
       return token;
     } catch (error) {
@@ -98,36 +98,16 @@ class NotificationService {
   /**
    * Sauvegarde le token dans la base de données Supabase
    */
-  async saveTokenToDatabase(userId, token) {
+  async saveTokenToDatabase(token) {
     try {
-      // Vérifier si le token existe déjà
-      const { data: existing } = await supabase
-        .from('push_tokens')
-        .select('id')
-        .eq('token', token)
-        .single();
-
-      if (existing) {
-        // Mettre à jour le token existant
-        await supabase
-          .from('push_tokens')
-          .update({ 
-            user_id: userId, 
-            enabled: true,
-            device_type: Platform.OS 
-          })
-          .eq('token', token);
-      } else {
-        // Insérer un nouveau token
-        await supabase
-          .from('push_tokens')
-          .insert({
-            user_id: userId,
-            token: token,
-            device_type: Platform.OS,
-            enabled: true,
-          });
-      }
+      // La RPC rattache le jeton au compte connecté, même s'il appartenait à
+      // un autre compte sur ce téléphone (la RLS interdit de le reprendre
+      // directement).
+      const { error } = await supabase.rpc('register_push_token', {
+        p_token: token,
+        p_device_type: Platform.OS,
+      });
+      if (error) throw error;
 
       console.log('Token sauvegardé dans la base de données');
     } catch (error) {

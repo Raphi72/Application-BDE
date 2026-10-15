@@ -4,6 +4,8 @@ import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
 import { AUTH_EMAIL_REDIRECT_URL } from '../config/authEmail';
 import { notificationService } from '../services/NotificationService';
+import { useLanguage } from './LanguageContext';
+import { showMessage } from '../utils/dialogs';
 
 const AuthContext = createContext({});
 
@@ -15,25 +17,6 @@ export const useAuth = () => {
   return context;
 };
 
-/**
- * Extrait les tokens (access_token, refresh_token) d'une URL de deep link
- * et les injecte dans la session Supabase.
- */
-const handleDeepLink = async (url) => {
-  if (!url) return;
-  const fragment = url.split('#')[1];
-  if (!fragment) return;
-
-  const params = new URLSearchParams(fragment);
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-
-  if (accessToken && refreshToken) {
-    console.log('Deep link reçu, injection de la session Supabase...');
-    await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-  }
-};
-
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
@@ -41,6 +24,51 @@ export const AuthProvider = ({ children }) => {
   const [pushToken, setPushToken] = useState(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const notificationRegistered = useRef(false);
+  const { t } = useLanguage();
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Le lien arrive pendant que l'app repasse au premier plan : une alerte
+  // ouverte à cet instant est perdue sur Android, d'où le court délai.
+  const showLinkInvalid = () => {
+    setTimeout(() => {
+      showMessage(tRef.current('auth.linkInvalidTitle'), tRef.current('auth.linkInvalidMessage'));
+    }, 600);
+  };
+
+  /**
+   * Lien reçu par email (confirmation d'inscription, mot de passe oublié) :
+   * bdeapp://auth/callback#access_token=…&refresh_token=…&type=signup|recovery,
+   * ou #error=…&error_code=otp_expired si le lien n'est plus valide.
+   */
+  const handleDeepLink = async (url) => {
+    if (!url) return;
+    const fragment = url.split('#')[1];
+    if (!fragment) return;
+
+    const params = new URLSearchParams(fragment);
+
+    if (params.get('error') || params.get('error_code')) {
+      showLinkInvalid();
+      return;
+    }
+
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (!accessToken || !refreshToken) return;
+
+    // setSession n'émet que SIGNED_IN, jamais PASSWORD_RECOVERY : sans ce
+    // drapeau, le lien de réinitialisation connectait sans demander de
+    // nouveau mot de passe.
+    if (params.get('type') === 'recovery') {
+      setIsPasswordRecovery(true);
+    }
+    const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (error) {
+      setIsPasswordRecovery(false);
+      showLinkInvalid();
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -79,7 +107,7 @@ export const AuthProvider = ({ children }) => {
 
       if (session?.user && !notificationRegistered.current && event !== 'PASSWORD_RECOVERY') {
         notificationRegistered.current = true;
-        const token = await notificationService.registerForPushNotifications(session.user.id);
+        const token = await notificationService.registerForPushNotifications();
         setPushToken(token);
       }
 
@@ -114,7 +142,7 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
         options: {
-          data: userData, // Données supplémentaires (nom, rôle, etc.)
+          data: userData, // { name } : copié dans le profil par le trigger handle_new_user
           ...(AUTH_EMAIL_REDIRECT_URL ? { emailRedirectTo: AUTH_EMAIL_REDIRECT_URL } : {}),
         },
       });
@@ -138,7 +166,7 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, password) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 

@@ -341,11 +341,7 @@ function EventDetailsScreen({ route }) {
 
         if (error) throw error;
 
-        await supabase
-          .from('events')
-          .update({ current_participants: Math.max(0, currentParticipants - 1) })
-          .eq('id', eventId);
-
+        // events.current_participants est tenu à jour par la base (trigger).
         setIsRegistered(false);
         setCurrentParticipants(prev => Math.max(0, prev - 1));
         Alert.alert(t('common.success'), t('events.unregisterSuccess'));
@@ -360,12 +356,16 @@ function EventDetailsScreen({ route }) {
           .from('event_registrations')
           .insert([{ event_id: eventId, user_id: user.id }]);
 
+        // Refus du trigger check_event_registration (database/schema.sql)
+        if (error?.message?.includes('event_full')) {
+          Alert.alert(t('events.full'), t('events.eventFull'));
+          return;
+        }
+        if (error?.message?.includes('event_past')) {
+          Alert.alert(t('common.error'), t('events.endedCta'));
+          return;
+        }
         if (error) throw error;
-
-        await supabase
-          .from('events')
-          .update({ current_participants: currentParticipants + 1 })
-          .eq('id', eventId);
 
         setIsRegistered(true);
         setCurrentParticipants(prev => prev + 1);

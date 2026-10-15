@@ -106,14 +106,15 @@ export default function LoginScreen({ navigation }) {
 
   // Envoyer l'email de réinitialisation
   const handleResetPassword = async () => {
-    if (!resetEmail) {
+    const targetEmail = resetEmail.trim();
+    if (!targetEmail) {
       showAlert(t('common.error'), t('auth.enterYourEmail'));
       return;
     }
 
     // Vérifier le format email basique
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(resetEmail)) {
+    if (!emailRegex.test(targetEmail)) {
       showAlert(t('common.error'), t('auth.enterValidEmail'));
       return;
     }
@@ -121,7 +122,7 @@ export default function LoginScreen({ navigation }) {
     setResetLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
         ...(AUTH_EMAIL_REDIRECT_URL ? { redirectTo: AUTH_EMAIL_REDIRECT_URL } : {}),
       });
 

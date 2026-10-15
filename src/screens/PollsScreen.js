@@ -59,7 +59,7 @@ function PollsListScreen() {
       });
 
       setPolls(formattedPolls);
-      loadVoteCounts(formattedPolls);
+      loadVoteCounts();
     } catch (error) {
       console.error('Erreur lors du chargement des sondages:', error);
       Alert.alert(t('common.error'), t('errors.generic'));
@@ -78,34 +78,26 @@ function PollsListScreen() {
     loadUserVotes();
   };
 
-  const loadVoteCounts = async (pollsList) => {
+  // Nombre de voix par option, pour tous les sondages en une requête. La RPC
+  // ne renvoie que des totaux : qui a voté quoi reste privé.
+  const loadVoteCounts = async () => {
     try {
-      for (const poll of pollsList) {
-        const { data, error } = await supabase
-          .from('votes')
-          .select('option_index')
-          .eq('poll_id', poll.id);
+      const { data, error } = await supabase.rpc('poll_results');
+      if (error) throw error;
 
-        if (error) throw error;
+      const counts = {};
+      (data || []).forEach(({ poll_id, option_index, votes }) => {
+        counts[poll_id] = counts[poll_id] || {};
+        counts[poll_id][option_index] = Number(votes);
+      });
 
-        const voteCounts = {};
-        (data || []).forEach(vote => {
-          voteCounts[vote.option_index] = (voteCounts[vote.option_index] || 0) + 1;
-        });
-
-        const updatedOptions = poll.options.map((opt, index) => ({
-          ...opt,
-          votes: voteCounts[index] || 0,
-        }));
-
-        setPolls(prevPolls =>
-          prevPolls.map(p =>
-            p.id === poll.id
-              ? { ...p, options: updatedOptions, totalVotes: (data || []).length }
-              : p
-          )
-        );
-      }
+      setPolls(prevPolls =>
+        prevPolls.map(p => {
+          const pollCounts = counts[p.id] || {};
+          const options = p.options.map((opt, index) => ({ ...opt, votes: pollCounts[index] || 0 }));
+          return { ...p, options, totalVotes: options.reduce((sum, opt) => sum + opt.votes, 0) };
+        })
+      );
     } catch (error) {
       console.error('Erreur lors du chargement des votes:', error);
     }
@@ -161,12 +153,13 @@ function PollsListScreen() {
         .from('votes')
         .insert([{ poll_id: poll.id, user_id: user.id, option_index: optionIndex }]);
 
+      // Refus du trigger check_vote (database/schema.sql) ; polls.total_votes
+      // est tenu à jour par la base.
+      if (error?.message?.includes('poll_closed')) {
+        Alert.alert(t('common.error'), t('polls.pollEnded'));
+        return;
+      }
       if (error) throw error;
-
-      await supabase
-        .from('polls')
-        .update({ total_votes: (poll.totalVotes || 0) + 1 })
-        .eq('id', poll.id);
 
       // Mise à jour locale : la carte bascule sur les résultats
       setPolls(prev =>

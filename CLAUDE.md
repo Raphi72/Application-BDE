@@ -42,16 +42,28 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - i18n : `src/translations/fr.js` **et** `en.js`, `t('section.cle', { param })` avec `{{param}}` dans les chaînes. Pluriels via `src/utils/plural.js`.
 - Dates : `dateParts()`, `formatTime()` et `formatShortDate()` dans `src/utils/dateUtils.js`.
 - Dialogues multiplateformes : `showMessage` / `confirmAction` (`src/utils/dialogs.js`), car `Alert.alert` ne fait rien sur web.
+- Session : le client Supabase (`src/config/supabase.js`) la garde dans AsyncStorage. Sans `storage`, supabase-js la garde en mémoire hors navigateur et chaque redémarrage de l'app déconnectait l'utilisateur.
+- Liens reçus par email (confirmation, mot de passe oublié) : `bdeapp://auth/callback#…`, lus par `handleDeepLink` dans `AuthContext`. `setSession` n'émet que `SIGNED_IN` : c'est `type=recovery` dans le lien qui pose `isPasswordRecovery` (écran de nouveau mot de passe). Lien expiré ou déjà utilisé (`#error=…`) : message `auth.linkInvalid*`.
+
+## Base de données et comptes
+
+- **Un seul script : `database/schema.sql`**, idempotent et transactionnel. Il crée la base sur un projet neuf et remet la prod à niveau sans toucher aux données. Il supprime puis recrée **toutes** les politiques RLS du schéma public : une politique ajoutée à la main dans le dashboard disparaît au prochain passage, l'écrire dans ce fichier. Les anciens correctifs (`clubs_espace.sql`, `club_sessions.sql`, `fix_*.sql`, `delete_user.sql`) y sont fondus ; ils restent dans l'historique git (commit `6fbadfe`).
+- `schema.sql` et `nettoyage_lancement.sql` ont été exécutés sur la prod le 15 octobre 2026 (inscription vérifiée ensuite sur téléphone). La 1.1.0 fonctionne avec ce schéma ; la version suivante en a besoin (RPC `poll_results` et `register_push_token`).
+- `database/audit.sql` : requêtes en lecture seule (comptes, admins, clés étrangères, politiques, compteurs). `database/nettoyage_lancement.sql` : script ponctuel d'octobre 2026 (purge du contenu de test, sondage de satisfaction, actualité du week-end d'intégration).
+- Tests : `database/tests/schema.test.mjs`, banc PGlite (installation neuve, remise à niveau d'une base 1.1.0 récupérée par git, nettoyage). PGlite s'installe **hors du projet** (mode d'emploi en tête du fichier). Ne jamais tester sur le Supabase de prod.
+- Inscription : réservée à `@aivancity.education` / `@aivancity.ai`, vérifiée dans l'app **et** par le trigger `enforce_school_email` sur `auth.users` (la clé anon est dans l'APK). Refus côté API : « Database error saving new user ». Les comptes existants hors domaine ne sont pas bloqués. Le profil est créé par `handle_new_user` (rôle toujours `user`, nom nettoyé, 80 caractères).
+- Email déjà inscrit et confirmé : `signUp` ne renvoie pas d'erreur mais un utilisateur avec `identities: []` et n'envoie rien ; `RegisterScreen` le traite comme « email déjà utilisé ».
+- Confirmation d'email activée sur le projet (`mailer_autoconfirm: false`), Site URL = `bdeapp://auth/callback`. Les boîtes de l'école sont chez Microsoft 365 : un antivirus qui ouvre les liens avant l'étudiant consomme le jeton, d'où le message « lien expiré, essayez de vous connecter ».
+- Compteurs tenus par la base : `events.current_participants`, `polls.total_votes`, `clubs.members_count` (triggers ; toute valeur écrite par l'app ou l'admin est écrasée). Inscription à un événement passé ou complet, vote sur un sondage clos ou option inexistante : refusés par trigger (`event_past`, `event_full`, `poll_closed`, `invalid_option`).
+- Données personnelles : profils, inscriptions, propositions et jetons push ne sont lisibles que par leur propriétaire et les admins. Résultats des sondages : RPC `poll_results` (totaux sans identité). Jeton push : RPC `register_push_token` (reprend un jeton laissé par un autre compte sur le même téléphone).
 
 ## Espace club
 
-- Base : `database/clubs_espace.sql` (à exécuter après `schema.sql`, idempotent). Tables `club_members`, `club_join_requests`, `club_posts`, `club_projects`, `club_sessions`, `club_session_responses` ; colonnes `clubs.president_id`, `proposal_id`, `max_capacity`, `recruiting`. Mise à jour ciblée des installations existantes : `database/club_sessions.sql`, puis `database/fix_club_authors.sql` (auteur d'une session en `ON DELETE SET NULL` : sans lui, `delete_user` échoue pour qui a créé une session).
 - Triggers qui figent l'auteur (`set_club_content_author`, `set_club_session_metadata`) : ils doivent laisser passer la remise à `NULL` faite par la base quand le compte auteur est supprimé, sinon la ligne garde l'identifiant d'un compte disparu.
 - Les écritures sensibles passent par des RPC `SECURITY DEFINER` qui vérifient les droits et lèvent des codes courts (`club_full`, `not_allowed`…), traduits par `clubErrorMessage` (`src/services/clubService.js`, point d'accès unique aux données clubs).
 - Triggers : `members_count` = nombre réel de lignes `club_members` (toute saisie manuelle est écrasée) ; quand un admin valide une proposition (club créé puis proposition `approved`, ou l'inverse), le club est relié à la proposition de même nom et son auteur devient président. Les écrans admin n'ont donc rien de spécial à faire.
 - Droits : membre = lecture seule du fil, des projets et des membres sans emails, voit les sessions et répond présent/absent ; bureau (`role = 'bureau'`) = publie les annonces, sessions et projets ; président (`clubs.president_id`) = en plus demandes d'adhésion, emails, rôles, retrait, transmission, réglages, rapport mensuel ; admin BDE = tout, plus désigner le président par email. Un membre admis ne peut plus lire sa propre demande d'adhésion.
 - Écrans : `src/screens/club/` (`ClubSpaceScreen` + un fichier par onglet, `ClubSettingsScreen`), routés dans la pile de `ClubsScreen`. Le Profil y accède via `navigate('MainTabs', { screen: 'Clubs', params: { screen: 'ClubSpace', params: { clubId } } })`. Adhésions de l'utilisateur : hook `useMyClubs` (rechargé au focus).
-- Tests SQL : la migration a été validée dans PGlite (Postgres en WASM) avec des stubs `auth.users`, `auth.uid()` et `storage`. Pour la retester, recréer ce banc plutôt que de tester sur le Supabase de prod.
 
 ## Design system NØVYX
 
@@ -82,15 +94,17 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - `9ea3fac` : ce fichier.
 - Migration Expo SDK 54 → 57 (RN 0.86) : dépendances alignées, `react-native-calendars` 1.1314 (supprime le doublon `safe-area-context`), splash via plugin, `@react-navigation/bottom-tabs` retiré (inutilisé). Vérifiée sur émulateur avec Expo Go 57.
 - Release **1.1.0** (octobre 2026, tag `v1.1.0`, `versionCode` 4, build EAS de production) : espace club, sessions de club, refonte admin, verrouillage du rôle admin, correctif de suppression de compte. La prochaine build Play Store doit passer à `versionCode` 5 (`appVersionSource: local`, à incrémenter à la main dans `app.json`).
+- Après la 1.1.0 (octobre 2026) : base consolidée en un seul `schema.sql` rejouable et testé (PGlite), compteurs tenus par triggers, domaine de l'école imposé côté serveur, données personnelles fermées aux visiteurs et aux autres comptes, galerie (tables et écran) supprimée. App : session persistante (AsyncStorage), lien de réinitialisation réparé, email déjà inscrit détecté, résultats des sondages via `poll_results`.
 - Branche `fix/admin-panel` (fusionnée dans `master`) : réparation de l'espace admin, cassé depuis `f9f0dfa` (onglet Admin → « Another navigator is already registered »), refonte NØVYX des 5 écrans admin, choix d'image en galerie réparé (`mediaTypes`), pastilles d'onglet arrondies sur Android. Vérifiée sur émulateur avec une fausse session admin.
 
 ## Points ouverts
 
+- Votes : la lecture de tous les votes reste ouverte aux comptes connectés, car la 1.1.0 compte les voix elle-même. Quand elle ne sera plus en circulation, restreindre la politique (consigne dans `schema.sql`, section 7) pour que les votes restent anonymes.
+- Bucket `images` : les 4 photos de test du dossier `events/` sont à supprimer à la main (Supabase > Storage), le SQL ne peut pas supprimer de fichiers.
 - `@expo/vector-icons` est déprécié depuis le SDK 56 (au profit des paquets `@react-native-vector-icons/*`) : il fonctionne encore, migration à prévoir.
 - React Navigation reste en v6 : fonctionne en SDK 57, mais la v7 est la version maintenue.
 - Captures et bannière (`play-store/feature-graphic.png`) de la fiche Play Store à refaire : elles montrent l'ancien design.
-- `play-store/FICHE_PLAY_STORE.md` contient les identifiants du compte testeur (administrateur) dans un dépôt public : mot de passe à changer, identifiants à sortir du dépôt.
-- `GalleryScreen` est importé mais jamais routé (code mort).
+- Compte testeur Play Store : l'ancien (mot de passe publié dans le dépôt) est supprimé. Le nouveau mot de passe n'existe que dans la copie locale de `play-store/FICHE_PLAY_STORE.md` : **ne pas committer ce fichier tant qu'il le contient** (dépôt public). Compte à créer dans Supabase (Add user, Auto Confirm) et à reporter dans Play Console > Accès aux applications.
 - Formulaires admin : l'affichage du clavier virtuel dans les modales (champs du bas masqués ou non) n'a pas été vérifié sur un vrai téléphone (l'émulateur utilise un clavier matériel).
 - `imageUpload.js` : le choix « Galerie / Appareil photo » et ses messages d'erreur sont en dur, en français et au vouvoiement.
 - Web uniquement : un drag souris qui commence et finit sur une carte l'ouvre au relâchement (react-native-web déclenche `onPress` sur `click`). Problème préexistant, le mobile n'est pas concerné.
