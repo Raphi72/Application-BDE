@@ -7,7 +7,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 
 - React Native + **Expo SDK 57** (RN 0.86.3, React 19.2.3, New Architecture uniquement), JavaScript (pas de TypeScript).
 - Backend Supabase ; clés dans `.env` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, non versionné).
-- Cible principale : Android (Play Store). Le web (`expo start --web`) sert seulement à tester.
+- Cibles : Android (Play Store) ; iPhone via la version web sur **bde-aivancity.com/app** en attendant l'App Store (voir « Version web »). `expo start --web` sert aussi à tester.
 - Dépôt GitHub **public** `Raphi72/Application-BDE`, branche `master`.
 - Identité système dans `app.json` : `name` = `NØVYX`. Ne pas changer `slug` (`bde-app`) ni `package` / `bundleIdentifier` (`com.bde.app`) : cela casserait EAS et la fiche Play Store.
 
@@ -56,6 +56,15 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - Confirmation d'email activée sur le projet (`mailer_autoconfirm: false`), Site URL = `bdeapp://auth/callback`. Les boîtes de l'école sont chez Microsoft 365 : un antivirus qui ouvre les liens avant l'étudiant consomme le jeton, d'où le message « lien expiré, essayez de vous connecter ».
 - Compteurs tenus par la base : `events.current_participants`, `polls.total_votes`, `clubs.members_count` (triggers ; toute valeur écrite par l'app ou l'admin est écrasée). Inscription à un événement passé ou complet, vote sur un sondage clos ou option inexistante : refusés par trigger (`event_past`, `event_full`, `poll_closed`, `invalid_option`).
 - Données personnelles : profils, inscriptions, propositions et jetons push ne sont lisibles que par leur propriétaire et les admins. Résultats des sondages : RPC `poll_results` (totaux sans identité). Jeton push : RPC `register_push_token` (reprend un jeton laissé par un autre compte sur le même téléphone).
+
+## Version web (iPhone, bde-aivancity.com/app)
+
+- But : donner l'app aux iPhone tant qu'elle n'est pas sur l'App Store. Safari > Partager > Sur l'écran d'accueil l'installe en plein écran (manifeste + icônes dans `public/`).
+- Construire : `node scripts/build-web.js ../site_bde/app` (export Expo dans `dist-web/`, copié dans le site). Le site (`Desktop/code/site_bde`, pas de git) est hébergé chez Hostinger (Apache) : envoyer le dossier `app/` dans `public_html/app` (gestionnaire de fichiers de hPanel ; une archive zip qui contient `app/` s'extrait directement dans `public_html`).
+- Sous-chemin `/app` : posé par `app.config.js` **seulement** quand `EXPO_WEB_BASE_URL` est défini (le script le fait). `app.json` reste la seule source pour Android / iOS / Expo Go. Les chemins de `public/index.html` et `public/manifest.json` sont écrits en `/app/` en dur.
+- `public/index.html` : modèle HTML d'Expo personnalisé (balises iPhone, `viewport-fit=cover`, fond papier). `public/.htaccess` : `index.html` jamais mis en cache (les bundles ont un hash). Icônes : `public/apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, générées par `generate_brand_assets.py`.
+- Sur le web : `Alert.alert` ne fait rien, toujours passer par `showMessage` / `confirmAction`. Pas de push (`NotificationService` et `App.js` sautent le web). Les liens des emails reviennent sur la page web (`AUTH_EMAIL_REDIRECT_URL` dans `src/config/authEmail.js`), qui doit figurer dans les Redirect URLs de Supabase. Une fois lus, les jetons sont retirés de l'adresse.
+- Après chaque changement de l'app à publier aussi sur iPhone : reconstruire et renvoyer `app/` sur Hostinger. Pas de magasin : la mise à jour est immédiate.
 
 ## Espace club
 
@@ -108,6 +117,7 @@ Code et commentaires en français ; l'utilisateur échange en français.
 - Formulaires admin : l'affichage du clavier virtuel dans les modales (champs du bas masqués ou non) n'a pas été vérifié sur un vrai téléphone (l'émulateur utilise un clavier matériel).
 - `imageUpload.js` : le choix « Galerie / Appareil photo » et ses messages d'erreur sont en dur, en français et au vouvoiement.
 - Web uniquement : un drag souris qui commence et finit sur une carte l'ouvre au relâchement (react-native-web déclenche `onPress` sur `click`). Problème préexistant, le mobile n'est pas concerné.
-- Web uniquement : donner le focus à un champ dans une rubrique (espace club, proposition de club…) fait défiler horizontalement le conteneur `overflow: hidden` du pager, ce qui décale la page. Le mobile n'est pas concerné. Correctif possible : remettre `scrollLeft` à 0 sur ce conteneur (écouteur `scroll`).
+- Version web : l'envoi d'images par les admins et les présidents (`imageUpload.js`, basé sur `expo-file-system`) ne fonctionne pas, et l'envoi de notifications depuis l'admin n'y a pas été testé : passer par l'app Android pour ces actions.
+- Version web sur iPhone : l'app installée sur l'écran d'accueil a un stockage séparé de Safari. Un lien de confirmation ouvert dans Safari y connecte l'utilisateur, qui doit se reconnecter une fois dans l'app installée.
 - Espace club : pas encore de notification push au président pour une nouvelle demande, ni au demandeur à la réponse. Les jetons push ne sont lisibles que par les admins : il faudrait une Edge Function Supabase.
 - Espace club : la politique de confidentialité doit mentionner que le président d'un club voit le nom, l'email et le message des personnes qui demandent à le rejoindre.

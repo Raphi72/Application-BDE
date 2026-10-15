@@ -6,12 +6,15 @@ import { supabase } from '../config/supabase';
 // Vérifie si on est dans Expo Go (les notifications ne fonctionnent pas dans Expo Go depuis SDK 53)
 const isExpoGo = Constants.appOwnership === 'expo';
 
+// Push uniquement dans les vraies builds mobiles : ni Expo Go, ni la version
+// web (bde-aivancity.com/app), qui demanderait sinon l'autorisation au navigateur.
+const pushAvailable = !isExpoGo && Platform.OS !== 'web';
+
 // Chargé uniquement hors Expo Go : le simple import d'expo-notifications y
 // affiche une erreur (push Android retiré depuis SDK 53) et un avertissement.
-const Notifications = isExpoGo ? null : require('expo-notifications');
+const Notifications = pushAvailable ? require('expo-notifications') : null;
 
-// Configuration des notifications (seulement si pas dans Expo Go)
-if (!isExpoGo) {
+if (pushAvailable) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -33,9 +36,9 @@ class NotificationService {
   async registerForPushNotifications() {
     let token = null;
 
-    // Les notifications push ne fonctionnent pas dans Expo Go depuis SDK 53
-    if (isExpoGo) {
-      console.log('⚠️ Notifications push désactivées dans Expo Go. Utilisez un development build pour les tester.');
+    // Les notifications push ne fonctionnent pas dans Expo Go depuis SDK 53, ni sur le web
+    if (!pushAvailable) {
+      console.log('⚠️ Notifications push indisponibles ici (Expo Go ou version web).');
       return null;
     }
 
@@ -232,8 +235,8 @@ class NotificationService {
    * Notification locale (pour les tests)
    */
   async scheduleLocalNotification(title, body) {
-    if (isExpoGo) {
-      console.log('⚠️ Notifications locales désactivées dans Expo Go');
+    if (!pushAvailable) {
+      console.log('⚠️ Notifications locales indisponibles ici (Expo Go ou version web)');
       return;
     }
     

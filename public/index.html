@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- maximum-scale : Safari ne zoome plus au focus d'un champ ; viewport-fit : marges sûres de l'iPhone -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+
+    <!-- Version installable : Safari > Partager > Sur l'écran d'accueil.
+         Chemins en /app/ : l'export est servi sur bde-aivancity.com/app (scripts/build-web.js). -->
+    <link rel="manifest" href="/app/manifest.json" />
+    <link rel="apple-touch-icon" href="/app/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="NØVYX" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- Réinitialisation recommandée par react-native-web, fond papier pendant le chargement -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background-color: #fff4e6;
+      }
+      body {
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>
+      Activez JavaScript pour utiliser NØVYX.
+    </noscript>
+    <div id="root"></div>
+  </body>
+</html>

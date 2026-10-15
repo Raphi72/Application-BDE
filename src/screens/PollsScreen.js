@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, StyleSheet, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PollCard from '../components/PollCard';
 import { supabase } from '../config/supabase';
@@ -10,6 +10,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { plural } from '../utils/plural';
 import { EmptyState } from '../components/ui/Deco';
 import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
+import { showMessage } from '../utils/dialogs';
 
 const Stack = createNativeStackNavigator();
 const COLOR = SECTION_COLORS.Polls;
@@ -62,7 +63,7 @@ function PollsListScreen() {
       loadVoteCounts();
     } catch (error) {
       console.error('Erreur lors du chargement des sondages:', error);
-      Alert.alert(t('common.error'), t('errors.generic'));
+      showMessage(t('common.error'), t('errors.generic'));
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -135,15 +136,15 @@ function PollsListScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert(t('common.error'), t('polls.loginRequired'));
+        showMessage(t('common.error'), t('polls.loginRequired'));
         return;
       }
       if (poll.userVote) {
-        Alert.alert(t('common.error'), t('polls.alreadyVoted'));
+        showMessage(t('common.error'), t('polls.alreadyVoted'));
         return;
       }
       if (isPastDate(poll.endDate)) {
-        Alert.alert(t('common.error'), t('polls.pollEnded'));
+        showMessage(t('common.error'), t('polls.pollEnded'));
         return;
       }
 
@@ -156,7 +157,7 @@ function PollsListScreen() {
       // Refus du trigger check_vote (database/schema.sql) ; polls.total_votes
       // est tenu à jour par la base.
       if (error?.message?.includes('poll_closed')) {
-        Alert.alert(t('common.error'), t('polls.pollEnded'));
+        showMessage(t('common.error'), t('polls.pollEnded'));
         return;
       }
       if (error) throw error;
@@ -178,7 +179,7 @@ function PollsListScreen() {
       );
     } catch (error) {
       console.error('Erreur lors du vote:', error);
-      Alert.alert(t('common.error'), t('polls.voteError'));
+      showMessage(t('common.error'), t('polls.voteError'));
     }
   };
 

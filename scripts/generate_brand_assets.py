@@ -11,6 +11,8 @@ Fichiers produits :
   assets/favicon.png                  48×48 (web)
   assets/notification-icon.png        96×96, silhouette blanche (notifications Android)
   play-store/icon-512.png             512×512 (fiche Play Store)
+  public/apple-touch-icon.png         180×180 (version web ajoutée à l'écran d'accueil d'un iPhone)
+  public/icon-192.png, icon-512.png   manifeste de la version web (bde-aivancity.com/app)
 
 Utilisation (depuis la racine du projet, Python 3 + Pillow) :
   python scripts/generate_brand_assets.py
@@ -102,6 +104,14 @@ def render_silhouette(size, ratio):
     return out.resize((size, size), Image.LANCZOS)
 
 
+def web_icons(icon):
+    """Icônes de la version web installable, opaques (iOS remplit la transparence de noir)."""
+    public = os.path.join(ROOT, 'public')
+    os.makedirs(public, exist_ok=True)
+    for name, size in (('apple-touch-icon.png', 180), ('icon-192.png', 192), ('icon-512.png', 512)):
+        icon.resize((size, size), Image.LANCZOS).convert('RGB').save(os.path.join(public, name))
+
+
 def main():
     assets = os.path.join(ROOT, 'assets')
     # Icône principale : fond plein (iOS refuse la transparence)
@@ -116,6 +126,7 @@ def main():
     icon.resize((48, 48), Image.LANCZOS).convert('RGB').save(os.path.join(assets, 'favicon.png'))
     render_silhouette(96, 0.42).save(os.path.join(assets, 'notification-icon.png'))
     icon.resize((512, 512), Image.LANCZOS).convert('RGB').save(os.path.join(ROOT, 'play-store', 'icon-512.png'))
+    web_icons(icon)
     print('Visuels NØVYX générés.')
 
 

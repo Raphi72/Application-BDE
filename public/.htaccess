@@ -1,0 +1,13 @@
+# Version web de l'app (bde-aivancity.com/app), servie par Apache chez Hostinger.
+DirectoryIndex index.html
+
+# index.html toujours revalidé : il pointe vers les bundles du dernier export,
+# dont le nom contient un hash et qui peuvent donc rester en cache.
+<IfModule mod_headers.c>
+  <Files "index.html">
+    Header set Cache-Control "no-cache"
+  </Files>
+  <Files "manifest.json">
+    Header set Cache-Control "no-cache"
+  </Files>
+</IfModule>

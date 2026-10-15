@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
 import { AUTH_EMAIL_REDIRECT_URL } from '../config/authEmail';
@@ -47,6 +47,12 @@ export const AuthProvider = ({ children }) => {
     if (!fragment) return;
 
     const params = new URLSearchParams(fragment);
+
+    // Version web : le lien arrive dans l'adresse de la page ; on en retire
+    // les jetons pour qu'ils ne restent ni affichés ni dans l'historique.
+    if (Platform.OS === 'web') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 
     if (params.get('error') || params.get('error_code')) {
       showLinkInvalid();

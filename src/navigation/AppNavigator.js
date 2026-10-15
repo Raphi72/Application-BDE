@@ -116,6 +116,22 @@ function CategoryPagerView({ state, navigation, descriptors }) {
   const [pendingClubCount, setPendingClubCount] = useState(0);
   const badgeMountedRef = useRef(true);
   const badgeRequestRef = useRef(0);
+  const rowRef = useRef(null);
+
+  // Web : le focus d'un champ fait défiler le conteneur overflow:hidden pour
+  // amener le champ à l'écran, ce qui décale toute la rangée de rubriques. Le
+  // déplacement est porté par translateX : le défilement doit rester à 0.
+  // Le conteneur est atteint par la rangée : GestureDetector remplace la ref
+  // posée directement sur lui.
+  useEffect(() => {
+    const node = Platform.OS === 'web' ? rowRef.current?.parentElement : null;
+    if (!node) return undefined;
+    const resetScroll = () => {
+      if (node.scrollLeft !== 0) node.scrollLeft = 0;
+    };
+    node.addEventListener('scroll', resetScroll);
+    return () => node.removeEventListener('scroll', resetScroll);
+  }, []);
 
   const refreshPendingClubCount = useCallback(async () => {
     const requestId = badgeRequestRef.current + 1;
@@ -303,6 +319,7 @@ function CategoryPagerView({ state, navigation, descriptors }) {
                 }}
               >
                 <Animated.View
+                  ref={rowRef}
                   style={{
                     flex: 1,
                     flexDirection: 'row',

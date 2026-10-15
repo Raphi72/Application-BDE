@@ -5,7 +5,6 @@ import {
   StyleSheet,
   SectionList,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Linking,
   RefreshControl,
@@ -24,6 +23,7 @@ import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
 import { Burst, EmptyState, Segmented, SectionTitle, Sticker } from '../components/ui/Deco';
 import { ScreenHeader, stackScreenOptions } from '../components/ui/Headers';
 import SwipeablePhotoGallery from '../components/SwipeablePhotoGallery';
+import { showMessage } from '../utils/dialogs';
 
 const Stack = createNativeStackNavigator();
 const COLOR = SECTION_COLORS.Events;
@@ -90,7 +90,7 @@ function EventsListScreen({ navigation }) {
       setEvents(formattedEvents);
     } catch (error) {
       console.error('Erreur lors du chargement des événements:', error);
-      Alert.alert(t('common.error'), t('errors.generic'));
+      showMessage(t('common.error'), t('errors.generic'));
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -325,7 +325,7 @@ function EventDetailsScreen({ route }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert(t('common.error'), t('events.loginRequired'));
+        showMessage(t('common.error'), t('events.loginRequired'));
         return;
       }
 
@@ -344,11 +344,11 @@ function EventDetailsScreen({ route }) {
         // events.current_participants est tenu à jour par la base (trigger).
         setIsRegistered(false);
         setCurrentParticipants(prev => Math.max(0, prev - 1));
-        Alert.alert(t('common.success'), t('events.unregisterSuccess'));
+        showMessage(t('common.success'), t('events.unregisterSuccess'));
       } else {
         // Inscription
         if (currentParticipants >= event.maxParticipants) {
-          Alert.alert(t('events.full'), t('events.eventFull'));
+          showMessage(t('events.full'), t('events.eventFull'));
           return;
         }
 
@@ -358,22 +358,22 @@ function EventDetailsScreen({ route }) {
 
         // Refus du trigger check_event_registration (database/schema.sql)
         if (error?.message?.includes('event_full')) {
-          Alert.alert(t('events.full'), t('events.eventFull'));
+          showMessage(t('events.full'), t('events.eventFull'));
           return;
         }
         if (error?.message?.includes('event_past')) {
-          Alert.alert(t('common.error'), t('events.endedCta'));
+          showMessage(t('common.error'), t('events.endedCta'));
           return;
         }
         if (error) throw error;
 
         setIsRegistered(true);
         setCurrentParticipants(prev => prev + 1);
-        Alert.alert(t('common.success'), t('events.registerSuccess'));
+        showMessage(t('common.success'), t('events.registerSuccess'));
       }
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
-      Alert.alert(t('common.error'), t('events.registerError'));
+      showMessage(t('common.error'), t('events.registerError'));
     } finally {
       setSubmitting(false);
     }

@@ -41,7 +41,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isExpoGo) return;
+    // Pas de push dans Expo Go ni dans la version web (bde-aivancity.com/app).
+    if (isExpoGo || Platform.OS === 'web') return;
 
     // Import différé : charger expo-notifications dans Expo Go affiche une
     // erreur (push Android retiré depuis SDK 53), même sans l'utiliser.
@@ -92,6 +93,7 @@ export default function App() {
   );
 }
 
+// Champs remplis automatiquement par le navigateur (version web) : couleurs de la charte
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
@@ -99,9 +101,9 @@ if (typeof document !== 'undefined') {
     input:-webkit-autofill:hover, 
     input:-webkit-autofill:focus, 
     input:-webkit-autofill:active {
-      -webkit-box-shadow: 0 0 0 30px #1E1E24 inset !important;
-      -webkit-text-fill-color: white !important;
-      caret-color: white !important;
+      -webkit-box-shadow: 0 0 0 30px ${PALETTE.white} inset !important;
+      -webkit-text-fill-color: ${PALETTE.ink} !important;
+      caret-color: ${PALETTE.ink} !important;
       transition: background-color 5000s ease-in-out 0s;
     }
   `;

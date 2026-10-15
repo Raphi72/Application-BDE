@@ -21,6 +21,7 @@ import { PopButton, PopCard, PopPressable } from '../components/ui/Pop';
 import { SectionTitle, Sticker, Wordmark } from '../components/ui/Deco';
 import MyClubRow from '../components/MyClubRow';
 import { useMyClubs } from '../hooks/useMyClubs';
+import { confirmAction, showMessage } from '../utils/dialogs';
 
 // Helper pour les alertes cross-platform
 const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -92,38 +93,18 @@ export default function ProfileScreen({ navigation }) {
     setAdminStatus(admin);
   };
 
-  const handleSignOut = () => {
-    // Sur web, Alert.alert ne gère pas toujours correctement les boutons (confirm/cancel)
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-alert
-      const ok = window.confirm('Êtes-vous sûr de vouloir vous déconnecter ?');
-      if (!ok) return;
-      signOut().then(({ error }) => {
-        if (error) Alert.alert('Erreur', 'Impossible de se déconnecter');
-      });
-      return;
-    }
+  const handleSignOut = async () => {
+    const confirmed = await confirmAction({
+      title: t('auth.logout'),
+      message: t('auth.logoutConfirm'),
+      confirmLabel: t('auth.logout'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-    Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
-      [
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
-        {
-          text: 'Déconnexion',
-          style: 'destructive',
-          onPress: async () => {
-            const { error } = await signOut();
-            if (error) {
-              Alert.alert('Erreur', 'Impossible de se déconnecter');
-            }
-          },
-        },
-      ]
-    );
+    const { error } = await signOut();
+    if (error) showMessage(t('common.error'), t('auth.logoutError'));
   };
 
   // Ouvrir le modal de suppression
